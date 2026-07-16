@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="light dark" />
+<meta name="theme-color" content="#181b1f" />
+<title>工事部 在庫管理</title>
+<link rel="apple-touch-icon" href="/icon-512.png" />
+<link rel="icon" type="image/png" href="/icon-512.png" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<meta name="apple-mobile-web-app-title" content="在庫管理" />
+<style>
+  :root{
+    --amber:#EF9F27; --amber-strong:#BA7517; --amber-ink:#412402;
+    --red:#E24B4A; --green:#1D9E75; --orange:#D85A30;
+    --page:#f1f0ea; --card:#ffffff; --line:#e4e3dc; --line-soft:#eeede7;
+    --text:#1b1f24; --muted:#6b7178; --faint:#9aa0a7;
+    --sidebar:#181b1f; --sidebar-2:#20242a; --sidebar-text:#c6ccd3; --sidebar-muted:#7f868f;
+    --header:#181b1f; --header-text:#ffffff;
+    --input-bg:#ffffff; --input-border:#cfd2ca;
+    --btn-soft:#e7e6df;
+    --shadow:0 1px 2px rgba(20,24,28,.05);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --page:#121519; --card:#1d2127; --line:#2f353d; --line-soft:#262b31;
+      --text:#e7eaee; --muted:#99a0a9; --faint:#6b727b;
+      --sidebar:#0e1013; --sidebar-2:#171b20; --sidebar-text:#c6ccd3; --sidebar-muted:#79808a;
+      --header:#0e1013; --header-text:#ffffff;
+      --input-bg:#161a1f; --input-border:#39404a;
+      --btn-soft:#2a313a;
+      --shadow:none;
+    }
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; padding:0;}
+  body{
+    font-family:-apple-system,"Hiragino Kaku Gothic ProN","Yu Gothic UI","Meiryo",sans-serif;
+    background:var(--page); color:var(--text); line-height:1.5;
+    overflow-x:hidden;
+  }
+  .hidden{display:none !important;}
+  .muted{color:var(--muted); font-size:13px;}
+  .center{text-align:center;}
+
+  /* ---------- レイアウトの骨格 ---------- */
+  .shell{display:flex; min-height:100vh;}
+  .sidebar{display:none;}
+  .main-wrap{flex:1; min-width:0; display:flex; flex-direction:column;}
+  header.topbar{
+    position:sticky; top:0; z-index:20; background:var(--header); color:var(--header-text);
+    border-bottom:2px solid var(--amber);
+    padding:calc(env(safe-area-inset-top) + 11px) 16px 11px;
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+  }
+  header.topbar .brand{font-size:15px; font-weight:700; letter-spacing:.02em; display:flex; align-items:center; gap:7px;}
+  header.topbar .brand i{color:var(--amber);}
+  header.topbar > div{min-width:0; flex:1;}
+  header.topbar .who{font-size:11px; color:#aeb4bb; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  header.topbar .logout{flex:0 0 auto; white-space:nowrap;}
+  header.topbar .logout{background:rgba(255,255,255,.12); color:#fff; border:none; border-radius:8px; padding:7px 11px; font-size:12px;}
+  .adminchip{font-size:10px; font-weight:700; background:var(--amber); color:var(--amber-ink); border-radius:4px; padding:1px 6px; margin-left:6px;}
+
+  main{width:100%; max-width:940px; margin:0 auto; padding:16px 16px 96px;}
+
+  nav.bottom{
+    position:fixed; bottom:0; left:0; right:0; z-index:20;
+    background:var(--card); border-top:1px solid var(--line);
+    display:grid; grid-template-columns:repeat(3,1fr);
+    padding-bottom:env(safe-area-inset-bottom);
+  }
+  nav.bottom.admin{grid-template-columns:repeat(5,1fr);}
+  nav.bottom button{background:none; border:none; padding:9px 4px 7px; font-size:11px; color:var(--muted); font-weight:600; border-top:2px solid transparent;}
+  nav.bottom button i{display:block; font-size:21px; line-height:1; margin-bottom:2px;}
+  nav.bottom button.active{color:var(--amber-strong); border-top-color:var(--amber);}
+  @media (prefers-color-scheme: dark){ nav.bottom button.active{color:var(--amber);} }
+
+  /* ---------- PC: サイドバー ---------- */
+  @media (min-width:860px){
+    .sidebar{
+      display:flex; flex-direction:column; width:240px; flex:0 0 240px;
+      background:var(--sidebar); color:var(--sidebar-text);
+      position:sticky; top:0; height:100vh; padding:20px 14px;
+    }
+    .sidebar .brand{font-size:16px; font-weight:700; display:flex; align-items:center; gap:9px; padding:4px 8px 18px; color:#fff; border-bottom:1px solid rgba(255,255,255,.08); margin-bottom:12px;}
+    .sidebar .brand i{color:var(--amber); font-size:22px;}
+    .side-link{display:flex; align-items:center; gap:11px; width:100%; background:none; border:none; color:var(--sidebar-text); font-size:14px; font-weight:600; padding:12px; border-radius:10px; margin-bottom:4px; text-align:left; cursor:pointer;}
+    .side-link i{font-size:20px; color:var(--sidebar-muted);}
+    .side-link:hover{background:var(--sidebar-2);}
+    .side-link.active{background:var(--amber); color:var(--amber-ink);}
+    .side-link.active i{color:var(--amber-ink);}
+    .side-foot{margin-top:auto; border-top:1px solid rgba(255,255,255,.08); padding-top:12px;}
+    .side-foot .u{font-size:12px; color:var(--sidebar-muted); padding:0 8px 8px; word-break:break-all; line-height:1.4;}
+    .side-foot .logout{width:100%; background:var(--sidebar-2); color:#fff; border:none; border-radius:9px; padding:10px; font-size:13px; font-weight:600;}
+    header.topbar{display:none;}
+    nav.bottom{display:none;}
+    main{padding:26px 30px 40px; max-width:1080px;}
+  }
+
+  /* ---------- 共通パーツ ---------- */
+  .page-title{font-size:19px; font-weight:700; margin:0 0 16px; display:none;}
+  @media (min-width:860px){ .page-title{display:block;} }
+  .card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px; margin-bottom:16px; box-shadow:var(--shadow);}
+  .card h2{font-size:15px; font-weight:700; margin:0 0 4px;}
+  .card .sub{font-size:12.5px; color:var(--muted); margin:0 0 14px;}
+  label{display:block; font-size:13px; font-weight:600; margin:15px 0 6px;}
+  label:first-child{margin-top:0;}
+  .req{color:var(--red); font-weight:700;}
+  input,select,textarea{
+    width:100%; min-width:0; max-width:100%; font-size:16px; padding:12px 13px; border:1px solid var(--input-border); border-radius:10px;
+    background:var(--input-bg); color:var(--text); font-family:inherit;
+  }
+  input, select{ height:46px; }
+  textarea{ height:auto; }
+  .grid2>div{min-width:0;}
+  input:focus,select:focus,textarea:focus{outline:none; border-color:var(--amber); box-shadow:0 0 0 3px rgba(239,159,39,.22);}
+  .btn{display:block; width:100%; border:none; border-radius:12px; padding:15px; font-size:16px; font-weight:700; background:var(--amber); color:var(--amber-ink); margin-top:20px; cursor:pointer;}
+  .btn:active{transform:scale(.99);}
+  .btn:disabled{opacity:.5;}
+  .btn.sub{background:var(--btn-soft); color:var(--text); border:1px solid var(--input-border); font-size:14px; font-weight:700; padding:12px; margin-top:10px;}
+  .btn.danger{background:rgba(226,75,74,.12); color:var(--red); border:1px solid var(--red); font-size:12px; font-weight:700; padding:7px 12px; margin:0; width:auto;}
+  .btn-row2,.btn-row3{display:grid; gap:8px; margin:10px 0 0; max-width:460px;}
+  .btn-row2{grid-template-columns:1fr 1fr;}
+  .btn-row3{grid-template-columns:repeat(3,1fr);}
+  .btn-row2 .btn,.btn-row3 .btn{margin-top:0; height:46px; padding:0 8px; font-size:15px; display:inline-flex; align-items:center; justify-content:center; gap:6px;}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:15px;}
+  .row-flex{display:flex; gap:10px;}
+  @media (min-width:860px){ .form-2col{display:grid; grid-template-columns:1fr 1fr; gap:0 20px;} }
+
+  .seg{display:grid; grid-template-columns:repeat(4,1fr); gap:7px;}
+  .seg button{padding:12px 2px; border:2px solid var(--input-border); background:var(--input-bg); border-radius:11px; font-size:14px; font-weight:700; color:var(--muted); cursor:pointer;}
+  .seg button span{display:block; font-weight:400; font-size:10px; margin-top:1px;}
+  .seg button[data-v="出庫"]{color:var(--red); border-color:rgba(226,75,74,.4);}
+  .seg button[data-v="入庫"]{color:var(--green); border-color:rgba(29,158,117,.4);}
+  .seg button[data-v="返却"]{color:var(--orange); border-color:rgba(216,90,48,.4);}
+  .seg button[data-v="処分"]{color:var(--muted); border-color:rgba(107,113,120,.45);}
+  .seg button.on[data-v="出庫"]{border-color:var(--red); background:rgba(226,75,74,.13); color:var(--red);}
+  .seg button.on[data-v="入庫"]{border-color:var(--green); background:rgba(29,158,117,.15); color:var(--green);}
+  .seg button.on[data-v="返却"]{border-color:var(--orange); background:rgba(216,90,48,.15); color:var(--orange);}
+  .seg button.on[data-v="処分"]{border-color:var(--muted); background:rgba(107,113,120,.18); color:var(--text);}
+
+  .stock-grid{display:grid; grid-template-columns:1fr; gap:0;}
+  @media (min-width:860px){ .stock-grid{grid-template-columns:1fr 1fr; gap:0 24px;} }
+  .stock-row{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:13px 2px; border-bottom:1px solid var(--line-soft);}
+  .stock-row.low{background:rgba(226,75,74,.12); border-left:3px solid var(--red); border-bottom-color:transparent; border-radius:8px; padding:13px 10px; margin:2px 0;}
+  .stock-name{font-weight:600; font-size:15px;}
+  .stock-meta{font-size:12px; color:var(--muted); margin-top:2px;}
+  .stock-num{text-align:right; white-space:nowrap;}
+  .stock-num b{font-size:23px; font-weight:700;}
+  .stock-num .u{font-size:12px; color:var(--muted); margin-left:3px;}
+  .badge{display:inline-block; font-size:11px; font-weight:700; padding:2px 8px; border-radius:20px;}
+  .badge.warn,.badge.t-出庫{background:rgba(226,75,74,.15); color:var(--red);}
+  .badge.t-入庫{background:rgba(29,158,117,.16); color:var(--green);}
+  .badge.t-返却{background:rgba(216,90,48,.16); color:var(--orange);}
+  .badge.t-処分{background:rgba(107,113,120,.2); color:var(--muted);}
+  .badge.t-棚卸調整{background:rgba(239,159,39,.2); color:var(--amber-strong);}
+  @media (prefers-color-scheme: dark){ .badge.t-棚卸調整{color:var(--amber);} }
+  .cert{color:var(--amber-strong); font-weight:700; text-decoration:none; white-space:nowrap;}
+  @media (prefers-color-scheme: dark){ .cert{color:var(--amber);} }
+  .stk-row{padding:11px 2px; border-bottom:1px solid var(--line-soft);}
+  .stk-name{font-weight:600; font-size:14px; margin-bottom:8px;}
+  .stk-line{display:flex; align-items:center; gap:9px; font-size:13px; color:var(--muted);}
+  .stk-line b{font-size:17px; color:var(--text); font-weight:700;}
+  .stk-cnt{width:96px; padding:9px; text-align:right; margin-left:auto;}
+  .stk-diff{min-width:50px; text-align:right; font-weight:700;}
+  .diff-pos{color:var(--green);}
+  .diff-neg{color:var(--red);}
+
+  .msg{padding:12px 14px; border-radius:10px; font-size:14px; margin-bottom:14px; display:none;}
+  .msg.ok{background:rgba(29,158,117,.14); color:var(--green); display:block;}
+  .msg.err{background:rgba(226,75,74,.14); color:var(--red); display:block;}
+
+  .item-admin{border:1px solid var(--line); border-radius:11px; padding:11px 13px; margin-bottom:8px;}
+  .item-admin .top{display:flex; justify-content:space-between; align-items:center;}
+  .item-admin .name{font-weight:600;}
+  .item-admin .edit{background:none; border:none; color:var(--amber-strong); font-size:13px; font-weight:700; cursor:pointer;}
+  @media (prefers-color-scheme: dark){ .item-admin .edit{color:var(--amber);} }
+
+  .tbl-wrap{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+  table.tbl{width:100%; border-collapse:collapse; font-size:13px; min-width:640px;}
+  table.tbl th,table.tbl td{text-align:left; padding:9px 10px; border-bottom:1px solid var(--line-soft); vertical-align:top; white-space:nowrap;}
+  table.tbl th{font-size:11.5px; color:var(--muted); font-weight:700; border-bottom:1px solid var(--line);}
+  table.tbl td.wrap{white-space:normal; min-width:120px;}
+  table.tbl .num{text-align:right;}
+  .adm-line{display:flex; justify-content:space-between; align-items:center; padding:11px 2px; border-bottom:1px solid var(--line-soft); gap:8px;}
+  .spinner{text-align:center; padding:30px; color:var(--muted);}
+
+  /* ---------- ログイン ---------- */
+  .login-wrap{max-width:400px; margin:0 auto; min-height:100vh; display:flex; flex-direction:column; justify-content:center; padding:24px;}
+  .login-card{background:var(--card); border:1px solid var(--line); border-radius:16px; padding:28px 24px; box-shadow:var(--shadow);}
+  .login-logo{width:60px; height:60px; border-radius:15px; background:var(--sidebar); color:var(--amber); display:flex; align-items:center; justify-content:center; font-size:30px; margin:0 auto 14px;}
+
+  /* ---------- 印刷 ---------- */
+  #printArea{display:none;}
+  @media print{
+    body{background:#fff;}
+    #app,#login{display:none !important;}
+    #printArea{display:block !important;}
+    #printArea table{width:100%; border-collapse:collapse; font-size:11px;}
+    #printArea th,#printArea td{border:1px solid #999; padding:4px 6px; text-align:left; vertical-align:top;}
+    #printArea th{background:#eee;}
+    #printArea h1{font-size:16px; margin:0 0 4px;}
+    #printArea .p-meta{font-size:11px; color:#333; margin-bottom:10px;}
+    #printArea .num{text-align:right;}
+    @page{size:A4 landscape; margin:12mm;}
+  }
+</style>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.30.0/dist/tabler-icons.min.css" />
+</head>
+<body>
+
+<!-- ============ ログイン ============ -->
+<div id="login" class="login-wrap hidden">
+  <div class="login-card">
+    <div class="login-logo"><i class="ti ti-building-warehouse"></i></div>
+    <h1 class="center" style="font-size:20px; margin:0 0 6px;">工事部 在庫管理</h1>
+    <p class="center muted" style="margin:0 0 18px;">会社のメールアドレスでログインします。届いたメールのリンクを開いてください。</p>
+    <div id="loginMsg" class="msg"></div>
+    <label>会社メールアドレス <span class="req">*</span></label>
+    <input id="loginEmail" type="email" inputmode="email" autocomplete="email" placeholder="name@sunlife-corporation.jp" />
+    <button id="loginBtn" class="btn"><i class="ti ti-mail"></i> ログインリンクを送る</button>
+    <p class="center" style="margin:16px 0 0;"><a href="/help" style="color:var(--amber-strong); font-weight:700; text-decoration:none;">📖 使い方を見る</a></p>
+  </div>
+</div>
+
+<!-- ============ アプリ本体 ============ -->
+<div id="app" class="hidden">
+<div class="shell">
+
+  <!-- PC: サイドバー -->
+  <aside class="sidebar">
+    <div class="brand"><i class="ti ti-building-warehouse"></i> <span>工事部 在庫管理</span></div>
+    <button class="side-link active" data-view="record"><i class="ti ti-pencil-plus"></i> 記録する</button>
+    <button class="side-link" data-view="stock"><i class="ti ti-chart-bar"></i> 在庫一覧</button>
+    <button class="side-link" data-view="master"><i class="ti ti-settings"></i> 型式マスタ</button>
+    <button class="side-link nav-admin hidden" data-view="stocktake"><i class="ti ti-clipboard-check"></i> 棚卸し</button>
+    <button class="side-link nav-admin hidden" data-view="admin"><i class="ti ti-history"></i> 履歴・出力</button>
+    <div class="side-foot">
+      <div class="u" id="sideWho"></div>
+      <a href="/help" target="_blank" style="display:block; color:var(--sidebar-text); font-size:13px; text-decoration:none; padding:6px 8px 10px;">📖 使い方を見る</a>
+      <button class="logout js-logout"><i class="ti ti-logout"></i> ログアウト</button>
+    </div>
+  </aside>
+
+  <div class="main-wrap">
+    <!-- スマホ: 上部バー -->
+    <header class="topbar">
+      <div>
+        <div class="brand"><i class="ti ti-building-warehouse"></i> 工事部 在庫管理<span id="adminChip" class="adminchip hidden">管理者</span></div>
+        <div class="who" id="whoami"></div>
+      </div>
+      <button class="logout js-logout">ログアウト</button>
+    </header>
+
+    <main>
+      <!-- 記録する -->
+      <section id="view-record">
+        <div style="text-align:right; margin-bottom:6px;"><a href="/help" target="_blank" style="color:var(--amber-strong); font-weight:600; font-size:13px; text-decoration:none;">📖 使い方</a></div>
+        <h1 class="page-title">記録する</h1>
+        <div id="recMsg" class="msg"></div>
+        <div class="card">
+          <h2>出入庫を記録する</h2>
+          <p class="sub">持ち出す人・受け取る人が、その場で記入してください。</p>
+          <label>区分 <span class="req">*</span></label>
+          <div class="seg" id="seg">
+            <button type="button" data-v="出庫">出庫<span>持ち出し</span></button>
+            <button type="button" data-v="入庫">入庫<span>納品</span></button>
+            <button type="button" data-v="返却">返却<span>現場から</span></button>
+            <button type="button" data-v="処分">処分<span>廃棄</span></button>
+          </div>
+          <div class="form-2col">
+            <div>
+              <label>型式・品名 <span class="req">*</span></label>
+              <select id="f-item"><option value="">選択してください</option></select>
+              <input id="f-item-free" class="hidden" type="text" list="f-item-list" autocomplete="off" placeholder="品名を入力（新規もOK）" />
+              <datalist id="f-item-list"></datalist>
+              <p id="f-item-hint" class="muted hidden" style="margin:6px 0 0;">既存にない品名は、新しい型式として自動登録されます。</p>
+              <div id="f-newunit-wrap" class="hidden"><label>単位（新しい品名のとき・任意）</label><input id="f-unit-new" type="text" placeholder="巻 / 本 / 個 / m" /></div>
+              <div class="grid2">
+                <div><label>数量 <span class="req">*</span></label><input id="f-qty" type="number" inputmode="decimal" min="0" step="any" placeholder="例: 3" /></div>
+                <div><label>日付 <span class="req">*</span></label><input id="f-date" type="date" /></div>
+              </div>
+              <label>工番</label>
+              <input id="f-job" type="text" placeholder="例: 2026-A-015" />
+            </div>
+            <div>
+              <label id="f-cp-label">持ち出し先（現場名）</label>
+              <input id="f-cp" type="text" placeholder="例: ○○邸 新築現場" />
+              <label>担当者名（記入者） <span class="req">*</span></label>
+              <input id="f-person" type="text" placeholder="例: 山田 太郎" />
+              <label>備考</label>
+              <input id="f-note" type="text" placeholder="任意" />
+            </div>
+          </div>
+          <div id="f-file-wrap" style="margin-top:8px;">
+            <label id="f-file-label">写真・証明書を添付（任意）</label>
+            <input id="f-file" type="file" accept="image/*,application/pdf" style="padding:9px;" />
+          </div>
+          <button id="submitBtn" class="btn"><i class="ti ti-check"></i> この内容で記録する</button>
+          <button id="cancelEditBtn" class="btn sub hidden">編集をやめる</button>
+        </div>
+        <div class="card">
+          <h2>今日の自分の記録</h2>
+          <p class="sub">当日中は、自分が入力した記録を訂正・取消できます（翌日以降は変更できません）。</p>
+          <div id="myRecent"><p class="muted center">今日の記録はまだありません。</p></div>
+        </div>
+      </section>
+
+      <!-- 在庫一覧 -->
+      <section id="view-stock" class="hidden">
+        <h1 class="page-title">在庫一覧</h1>
+        <div class="card">
+          <h2>現在庫数</h2>
+          <input id="stockSearch" type="search" placeholder="型式で絞り込み…" style="margin:4px 0 0;" />
+          <div class="btn-row2" style="margin-bottom:12px;">
+            <button id="stock-csv" class="btn sub"><i class="ti ti-file-spreadsheet"></i> CSV</button>
+            <button id="stock-pdf" class="btn"><i class="ti ti-printer"></i> PDF</button>
+          </div>
+          <div id="stockList"><div class="spinner">読み込み中…</div></div>
+        </div>
+      </section>
+
+      <!-- 型式マスタ -->
+      <section id="view-master" class="hidden">
+        <h1 class="page-title">型式マスタ</h1>
+        <div id="mstMsg" class="msg"></div>
+        <div class="card">
+          <h2>型式マスタ管理</h2>
+          <p class="sub">在庫の型式を登録します。ここに登録した型式が「記録する」で選べます。</p>
+          <button id="newItemBtn" class="btn sub"><i class="ti ti-plus"></i> 新しい型式を登録</button>
+          <div id="itemForm" class="hidden" style="margin-top:14px;">
+            <input id="m-id" type="hidden" />
+            <label>型式・品名 <span class="req">*</span></label>
+            <input id="m-name" type="text" placeholder="例: PVCケーブル 5.5sq" />
+            <div class="grid2">
+              <div><label>単位</label><input id="m-unit" type="text" placeholder="巻 / 本 / 個 / m" /></div>
+              <div><label>初期在庫数 <span class="req">*</span></label><input id="m-init" type="number" inputmode="decimal" step="any" placeholder="0" /></div>
+            </div>
+            <div class="grid2">
+              <div><label>発注点</label><input id="m-reorder" type="number" inputmode="decimal" step="any" placeholder="任意" /></div>
+              <div><label>保管場所</label><input id="m-loc" type="text" placeholder="例: A置場" /></div>
+            </div>
+            <label>備考</label>
+            <input id="m-note" type="text" placeholder="任意" />
+            <button id="saveItemBtn" class="btn"><i class="ti ti-device-floppy"></i> 保存する</button>
+            <button id="cancelItemBtn" class="btn sub">キャンセル</button>
+          </div>
+        </div>
+        <div class="card">
+          <h2>登録済みの型式</h2>
+          <div id="masterList"><div class="spinner">読み込み中…</div></div>
+        </div>
+      </section>
+
+      <!-- 管理者：棚卸し -->
+      <section id="view-stocktake" class="hidden">
+        <h1 class="page-title">棚卸し</h1>
+        <div id="stkMsg" class="msg"></div>
+        <div class="card">
+          <h2>実地棚卸し（差異チェック）</h2>
+          <p class="sub">現物を数えた実数を入力すると、システム在庫との差異を表示します。「差異を確定」で在庫を実数に合わせ、調整として記録に残します（初期棚卸し・月次棚卸しの両方に使えます）。</p>
+          <label>棚卸し基準日</label>
+          <input id="stk-date" type="date" />
+          <div id="stk-list" style="margin-top:12px;"><div class="spinner">読み込み中…</div></div>
+          <div id="stk-summary" class="muted" style="margin-top:12px;"></div>
+          <button id="stk-confirm" class="btn"><i class="ti ti-check"></i> 差異を確定して在庫を調整する</button>
+        </div>
+      </section>
+
+      <!-- 管理者：履歴・出力 -->
+      <section id="view-admin" class="hidden">
+        <h1 class="page-title">履歴・出力</h1>
+        <div id="admMsg" class="msg"></div>
+        <div class="card">
+          <h2>入出庫の詳細履歴</h2>
+          <p class="sub">管理者のみ閲覧できます。データは直近1年分を保持します。</p>
+          <label>対象月</label>
+          <input id="adm-month" type="month" />
+          <div class="btn-row3">
+            <button id="adm-load" class="btn sub">表示</button>
+            <button id="adm-csv" class="btn sub"><i class="ti ti-file-spreadsheet"></i> CSV</button>
+            <button id="adm-pdf" class="btn"><i class="ti ti-file-type-pdf"></i> PDF</button>
+          </div>
+          <div style="margin-top:10px;">
+            <label style="margin-top:0;">区分でしぼり込み</label>
+            <select id="adm-type">
+              <option value="">すべて</option>
+              <option value="出庫">出庫</option>
+              <option value="入庫">入庫</option>
+              <option value="返却">返却</option>
+              <option value="処分">処分（廃棄）だけ</option>
+              <option value="棚卸調整">棚卸調整</option>
+            </select>
+          </div>
+          <div id="adm-summary" class="muted" style="margin-top:12px;"></div>
+          <div id="adm-list" style="margin-top:6px;"></div>
+        </div>
+        <div class="card">
+          <h2>管理者の管理</h2>
+          <p class="sub">管理者だけが詳細履歴の閲覧・PDF出力・管理者の追加/削除をできます。会社メールのみ登録可能です。自分自身も外せますが、最後の1人は削除できません（ロックアウト防止）。</p>
+          <label>管理者を追加（会社メール）</label>
+          <input id="adm-newadmin" type="email" inputmode="email" placeholder="name@sunlife-corporation.jp" />
+          <button id="adm-addadmin" class="btn sub"><i class="ti ti-user-plus"></i> この人を管理者に追加</button>
+          <div id="adm-adminlist" style="margin-top:14px;"></div>
+        </div>
+      </section>
+    </main>
+
+    <!-- スマホ: 下タブ -->
+    <nav class="bottom" id="bottomNav">
+      <button class="active" data-view="record"><i class="ti ti-pencil-plus"></i>記録</button>
+      <button data-view="stock"><i class="ti ti-chart-bar"></i>在庫</button>
+      <button data-view="master"><i class="ti ti-settings"></i>マスタ</button>
+      <button class="nav-admin hidden" data-view="stocktake"><i class="ti ti-clipboard-check"></i>棚卸し</button>
+      <button class="nav-admin hidden" data-view="admin"><i class="ti ti-history"></i>履歴</button>
+    </nav>
+  </div>
+</div>
+</div>
+
+<div id="printArea"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL = "https://bdomgylhbuvxokppitao.supabase.co";
+const SUPABASE_KEY = "sb_publishable_z0CUao98W_WTo_ow63rpXg_kGRu1Qek";
+const COMPANY_DOMAIN = "@sunlife-corporation.jp";
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const $ = (id) => document.getElementById(id);
+function showMsg(el, text, type){ el.textContent = text; el.className = "msg " + type; if(type==="ok") setTimeout(()=>{el.className="msg";},4000); }
+function todayStr(){ const d=new Date(), p=n=>String(n).padStart(2,"0"); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
+function thisMonthStr(){ const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`; }
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function downloadCSV(filename, rows){
+  const csv = rows.map(r=>r.map(c=>{ const s=String(c==null?"":c); return /[",\n\r]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }).join(",")).join("\r\n");
+  const blob = new Blob(["﻿"+csv], {type:"text/csv;charset=utf-8;"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+}
+
+let CURRENT_USER=null, IS_ADMIN=false, EDIT_ID=null, ITEMS_CACHE=[], HISTORY_CACHE=[], HISTORY_MONTH="";
+
+/* 認証 */
+$("loginBtn").addEventListener("click", async () => {
+  const email = $("loginEmail").value.trim().toLowerCase(), msg = $("loginMsg");
+  if(!email){ showMsg(msg,"メールアドレスを入力してください。","err"); return; }
+  if(!email.endsWith(COMPANY_DOMAIN)){ showMsg(msg,`会社のメール（${COMPANY_DOMAIN}）のみ利用できます。`,"err"); return; }
+  $("loginBtn").disabled=true;
+  const { error } = await db.auth.signInWithOtp({ email, options:{ emailRedirectTo: window.location.href.split("#")[0] } });
+  $("loginBtn").disabled=false;
+  if(error) showMsg(msg,"送信に失敗しました："+error.message,"err");
+  else showMsg(msg,"ログイン用のメールを送りました。メール内のリンクを開いてください。","ok");
+});
+document.querySelectorAll(".js-logout").forEach(b=>b.addEventListener("click", async()=>{ await db.auth.signOut(); location.reload(); }));
+
+async function boot(){
+  const { data:{ session } } = await db.auth.getSession();
+  if(session && session.user){
+    CURRENT_USER = session.user;
+    $("login").classList.add("hidden"); $("app").classList.remove("hidden");
+    const email = CURRENT_USER.email || "";
+    $("whoami").textContent = "ログイン中: " + email;
+    $("sideWho").textContent = email;
+    $("f-person").value = localStorage.getItem("person_name") || (email.split("@")[0] || "");
+    $("f-date").value = todayStr();
+    $("adm-month").value = thisMonthStr();
+    try{ const { data:flag } = await db.rpc("is_admin"); IS_ADMIN = flag===true; }catch(e){ IS_ADMIN=false; }
+    if(IS_ADMIN){
+      document.querySelectorAll(".nav-admin").forEach(x=>x.classList.remove("hidden"));
+      $("bottomNav").classList.add("admin");
+      $("adminChip").classList.remove("hidden");
+    }
+    await loadItems();
+    await loadMyRecent();
+  }else{
+    $("app").classList.add("hidden"); $("login").classList.remove("hidden");
+  }
+}
+db.auth.onAuthStateChange((_e,s)=>{ if(s) boot(); });
+
+/* タブ切替（サイドバー・下タブ共通） */
+function switchView(v){
+  document.querySelectorAll("[data-view]").forEach(x=>x.classList.toggle("active", x.dataset.view===v));
+  ["record","stock","master","stocktake","admin"].forEach(n=>$("view-"+n).classList.toggle("hidden", n!==v));
+  if(v==="stock") loadStock();
+  if(v==="master") loadMaster();
+  if(v==="stocktake") loadStocktake();
+  if(v==="admin"){ loadHistory(); loadAdmins(); }
+  window.scrollTo({top:0});
+}
+document.querySelectorAll("[data-view]").forEach(b=>b.addEventListener("click", ()=>switchView(b.dataset.view)));
+
+/* 区分 */
+let txType="出庫";
+function applyTypeUI(){
+  const inbound=(txType==="入庫") && !EDIT_ID;
+  $("f-item").classList.toggle("hidden", inbound);
+  $("f-item-free").classList.toggle("hidden", !inbound);
+  $("f-item-hint").classList.toggle("hidden", !inbound);
+  $("f-newunit-wrap").classList.toggle("hidden", !inbound);
+  let cl,cp;
+  if(txType==="出庫"){ cl="持ち出し先（現場名）"; cp="例: ○○邸 新築現場"; }
+  else if(txType==="入庫"){ cl="入庫元"; cp="例: △△商事"; }
+  else if(txType==="返却"){ cl="返却元（現場名）"; cp="例: ○○現場"; }
+  else { cl="引取先・処分理由"; cp="例: ○○産廃 / 現場で廃棄"; }
+  $("f-cp-label").textContent=cl; $("f-cp").placeholder=cp;
+  $("f-file-label").textContent = (txType==="処分") ? "処分証明書を添付（写真・PDF／推奨）" : "写真・証明書を添付（任意）";
+}
+document.querySelectorAll("#seg button").forEach(b=>b.addEventListener("click", ()=>{
+  txType=b.dataset.v;
+  document.querySelectorAll("#seg button").forEach(x=>x.classList.remove("on"));
+  b.classList.add("on");
+  applyTypeUI();
+}));
+document.querySelector('#seg button[data-v="出庫"]').classList.add("on");
+applyTypeUI();
+
+/* 型式読み込み */
+async function loadItems(){
+  const { data, error } = await db.from("items").select("id,name,unit").eq("is_active",true).order("name");
+  if(error){ console.error(error); return; }
+  ITEMS_CACHE = data||[];
+  $("f-item").innerHTML = '<option value="">選択してください</option>' +
+    ITEMS_CACHE.map(i=>`<option value="${i.id}">${esc(i.name)}${i.unit?`（${esc(i.unit)}）`:""}</option>`).join("");
+  $("f-item-list").innerHTML = ITEMS_CACHE.map(i=>`<option value="${esc(i.name)}"></option>`).join("");
+}
+
+/* 記録 */
+$("submitBtn").addEventListener("click", async () => {
+  const msg=$("recMsg"), qty=parseFloat($("f-qty").value), date=$("f-date").value, person=$("f-person").value.trim();
+  if(!(qty>0)){ showMsg(msg,"数量を正しく入力してください。","err"); return; }
+  if(!date){ showMsg(msg,"日付を入力してください。","err"); return; }
+  if(!person){ showMsg(msg,"担当者名を入力してください。","err"); return; }
+
+  $("submitBtn").disabled=true;
+
+  // 添付（新しいファイルが選ばれていればアップロード）
+  let newAttachment=null;
+  const file=$("f-file").files[0];
+  if(file){
+    const ext=(file.name.split(".").pop()||"dat").toLowerCase();
+    const path=`${txType}/${new Date().getFullYear()}/${crypto.randomUUID()}.${ext}`;
+    const { error:ue } = await db.storage.from("certificates").upload(path, file);
+    if(ue){ showMsg(msg,"添付のアップロードに失敗しました："+ue.message,"err"); $("submitBtn").disabled=false; return; }
+    newAttachment=path;
+  }
+
+  // ===== 訂正（自分の当日分の更新）=====
+  if(EDIT_ID){
+    const item_id=$("f-item").value;
+    if(!item_id){ showMsg(msg,"型式・品名を選んでください。","err"); $("submitBtn").disabled=false; return; }
+    const upd={ item_id, tx_type:txType, quantity:qty, tx_date:date,
+      job_no:$("f-job").value.trim()||null, counterparty:$("f-cp").value.trim()||null,
+      person, note:$("f-note").value.trim()||null };
+    if(newAttachment) upd.attachment_path=newAttachment;
+    const { error } = await db.from("transactions").update(upd).eq("id", EDIT_ID);
+    $("submitBtn").disabled=false;
+    if(error){ showMsg(msg,"更新に失敗しました："+error.message,"err"); return; }
+    localStorage.setItem("person_name", person);
+    showMsg(msg,"✓ 記録を更新しました。","ok");
+    cancelEdit();
+    await loadItems(); await loadMyRecent();
+    window.scrollTo({top:0, behavior:"smooth"});
+    return;
+  }
+
+  // ===== 新規記録 =====
+  let item_id, itemName;
+  if(txType==="入庫"){
+    itemName = $("f-item-free").value.trim();
+    if(!itemName){ showMsg(msg,"品名を入力してください。","err"); $("submitBtn").disabled=false; return; }
+    const found = ITEMS_CACHE.find(i => (i.name||"").trim().toLowerCase() === itemName.toLowerCase());
+    if(found){ item_id = found.id; }
+    else {
+      const { data:ni, error:ce } = await db.from("items")
+        .insert({ name:itemName, unit:$("f-unit-new").value.trim()||null, initial_stock:0 })
+        .select("id").single();
+      if(ce){ showMsg(msg,"新しい品名の登録に失敗しました："+ce.message,"err"); $("submitBtn").disabled=false; return; }
+      item_id = ni.id;
+    }
+  } else {
+    item_id = $("f-item").value;
+    if(!item_id){ showMsg(msg,"型式・品名を選んでください。","err"); $("submitBtn").disabled=false; return; }
+    itemName = ITEMS_CACHE.find(i=>i.id===item_id)?.name || "";
+  }
+  const { error } = await db.from("transactions").insert({
+    item_id, tx_type:txType, quantity:qty, tx_date:date,
+    job_no:$("f-job").value.trim()||null, counterparty:$("f-cp").value.trim()||null,
+    person, note:$("f-note").value.trim()||null, attachment_path:newAttachment
+  });
+  $("submitBtn").disabled=false;
+  if(error){ showMsg(msg,"記録に失敗しました："+error.message,"err"); return; }
+  localStorage.setItem("person_name", person);
+  showMsg(msg,`✓ 記録しました：${txType} ${itemName} ${qty}`,"ok");
+  await loadItems(); await loadMyRecent();
+  $("f-item").value=""; $("f-item-free").value=""; $("f-unit-new").value="";
+  $("f-qty").value=""; $("f-job").value=""; $("f-cp").value=""; $("f-note").value=""; $("f-file").value="";
+  window.scrollTo({top:0, behavior:"smooth"});
+});
+
+/* 今日の自分の記録（本人が当日分を訂正・取消） */
+$("cancelEditBtn").addEventListener("click", cancelEdit);
+function cancelEdit(){
+  EDIT_ID=null;
+  $("submitBtn").innerHTML='<i class="ti ti-check"></i> この内容で記録する';
+  $("cancelEditBtn").classList.add("hidden");
+  $("f-item").value=""; $("f-item-free").value=""; $("f-unit-new").value="";
+  $("f-qty").value=""; $("f-job").value=""; $("f-cp").value=""; $("f-note").value=""; $("f-file").value="";
+  $("recMsg").className="msg";
+  applyTypeUI();
+}
+async function loadMyRecent(){
+  const box=$("myRecent"); if(!CURRENT_USER) return;
+  const start=new Date(); start.setHours(0,0,0,0);
+  const { data, error } = await db.from("transactions")
+    .select("id,tx_date,tx_type,quantity,job_no,counterparty,person,note,item_id,created_at,attachment_path,items(name,unit)")
+    .eq("created_by", CURRENT_USER.id).gte("created_at", start.toISOString()).order("created_at",{ascending:false});
+  if(error){ box.innerHTML=`<div class="msg err">読み込み失敗：${esc(error.message)}</div>`; return; }
+  const rows=(data||[]).filter(r=>r.tx_type!=="棚卸調整");
+  if(!rows.length){ box.innerHTML='<p class="muted center">今日の記録はまだありません。</p>'; return; }
+  box.innerHTML=rows.map(r=>{
+    const nm=r.items?r.items.name:"", unit=r.items?(r.items.unit||""):"";
+    const t=new Date(r.created_at), hm=`${String(t.getHours()).padStart(2,"0")}:${String(t.getMinutes()).padStart(2,"0")}`;
+    return `<div class="hist">
+      <div class="h-top"><span class="h-item">${esc(nm)}</span><span class="badge t-${r.tx_type}">${r.tx_type} ${r.quantity}${esc(unit)}</span></div>
+      <div class="h-detail">${hm}${r.counterparty?`　${esc(r.counterparty)}`:""}${r.job_no?`　工番:${esc(r.job_no)}`:""}${r.note?`<br>${esc(r.note)}`:""}${r.attachment_path?"　📎添付あり":""}</div>
+      <div style="margin-top:8px; display:flex; gap:8px;">
+        <button class="btn sub" style="margin:0; width:auto; padding:7px 16px;" data-edit="${r.id}"><i class="ti ti-edit"></i> 編集</button>
+        <button class="btn danger" data-del="${r.id}"><i class="ti ti-trash"></i> 取消</button>
+      </div>
+    </div>`;
+  }).join("");
+  box.querySelectorAll("button[data-edit]").forEach(b=>b.addEventListener("click", ()=>editRecord(rows.find(x=>x.id===b.dataset.edit))));
+  box.querySelectorAll("button[data-del]").forEach(b=>b.addEventListener("click", ()=>delRecord(b.dataset.del)));
+}
+function editRecord(r){
+  if(!r) return;
+  EDIT_ID=r.id; txType=r.tx_type;
+  document.querySelectorAll("#seg button").forEach(x=>x.classList.toggle("on", x.dataset.v===r.tx_type));
+  applyTypeUI();
+  $("f-item").value=r.item_id; $("f-qty").value=r.quantity; $("f-date").value=r.tx_date;
+  $("f-job").value=r.job_no||""; $("f-cp").value=r.counterparty||""; $("f-person").value=r.person||""; $("f-note").value=r.note||""; $("f-file").value="";
+  $("submitBtn").innerHTML='<i class="ti ti-check"></i> 更新する';
+  $("cancelEditBtn").classList.remove("hidden");
+  const m=$("recMsg"); m.textContent="編集中：内容を直して「更新する」を押してください。"; m.className="msg ok";
+  window.scrollTo({top:0, behavior:"smooth"});
+}
+async function delRecord(id){
+  if(!confirm("この記録を取り消します。よろしいですか？")) return;
+  const { error } = await db.from("transactions").delete().eq("id", id);
+  if(error){ showMsg($("recMsg"),"取消に失敗しました："+error.message,"err"); return; }
+  showMsg($("recMsg"),"記録を取り消しました。","ok");
+  if(EDIT_ID===id) cancelEdit();
+  await loadMyRecent();
+}
+
+/* 現在庫CSV出力 */
+$("stock-csv").addEventListener("click", ()=>{
+  const rows=window._stock||[]; if(!rows.length) return;
+  const data=[["型式・品名","保管場所","現在庫数","単位","発注点","状態","備考"]];
+  rows.forEach(r=>{ const cur=Number(r.current_stock); const warn=(r.reorder_point!=null&&cur<=Number(r.reorder_point)); const status=warn?"要発注":(cur<=0?"在庫なし":""); data.push([r.name,r.location||"",cur,r.unit||"",r.reorder_point??"",status,r.note||""]); });
+  downloadCSV(`在庫一覧_${todayStr()}.csv`, data);
+});
+
+/* 在庫一覧 */
+async function loadStock(){
+  const box=$("stockList"); box.innerHTML='<div class="spinner">読み込み中…</div>';
+  const { data, error } = await db.rpc("list_stock");
+  if(error){ box.innerHTML=`<div class="msg err">読み込み失敗：${esc(error.message)}</div>`; return; }
+  window._stock=data||[]; renderStock(window._stock);
+}
+function renderStock(rows){
+  const kw=$("stockSearch").value.trim().toLowerCase(), box=$("stockList");
+  const list=rows.filter(r=>!kw||(r.name||"").toLowerCase().includes(kw));
+  if(!list.length){ box.innerHTML='<p class="muted center">型式がありません。「型式マスタ」から登録してください。</p>'; return; }
+  box.innerHTML='<div class="stock-grid">'+list.map(r=>{
+    const cur=Number(r.current_stock);
+    const warn=(r.reorder_point!=null && cur<=Number(r.reorder_point));
+    const low=warn||cur<=0;
+    const badge = warn ? '<span class="badge warn">要発注</span>' : (cur<=0 ? '<span class="badge warn">在庫なし</span>' : "");
+    return `<div class="stock-row${low?" low":""}">
+      <div><div class="stock-name">${esc(r.name)}</div>
+        <div class="stock-meta">${r.location?esc(r.location)+" / ":""}出庫計 ${r.total_out} ・ 入庫返却計 ${r.total_in}</div>
+        ${badge}</div>
+      <div class="stock-num"><b style="color:${low?'var(--red)':'inherit'}">${cur}</b><span class="u">${esc(r.unit||"")}</span></div>
+    </div>`;
+  }).join("")+'</div>';
+}
+$("stockSearch").addEventListener("input", ()=>{ if(window._stock) renderStock(window._stock); });
+
+/* 現在庫一覧のPDF出力（全件のスナップショット） */
+$("stock-pdf").addEventListener("click", () => {
+  const rows = window._stock || [];
+  if(!rows.length){ return; }
+  const now=new Date();
+  const stamp=`${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()} ${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
+  let low=0;
+  const body=rows.map((r,idx)=>{
+    const cur=Number(r.current_stock);
+    const warn=(r.reorder_point!=null && cur<=Number(r.reorder_point));
+    const status = warn?"要発注":(cur<=0?"在庫なし":"");
+    if(warn||cur<=0) low++;
+    return `<tr><td class="num">${idx+1}</td><td>${esc(r.name)}</td><td>${esc(r.location||"")}</td><td class="num">${cur}</td><td>${esc(r.unit||"")}</td><td class="num">${r.reorder_point??""}</td><td>${status}</td><td>${esc(r.note||"")}</td></tr>`;
+  }).join("");
+  $("printArea").innerHTML=`<h1>工事部 在庫管理　現在庫一覧</h1>
+    <div class="p-meta">出力日時：${stamp}　／　型式数：${rows.length}　／　要発注・在庫なし：${low}件</div>
+    <table><thead><tr><th>No.</th><th>型式・品名</th><th>保管場所</th><th>現在庫数</th><th>単位</th><th>発注点</th><th>状態</th><th>備考</th></tr></thead>
+    <tbody>${body}</tbody></table>`;
+  window.print();
+});
+
+/* 型式マスタ */
+$("newItemBtn").addEventListener("click", ()=>openItemForm(null));
+$("cancelItemBtn").addEventListener("click", ()=>$("itemForm").classList.add("hidden"));
+function openItemForm(it){
+  $("itemForm").classList.remove("hidden");
+  $("m-id").value=it?.id||""; $("m-name").value=it?.name||""; $("m-unit").value=it?.unit||"";
+  $("m-init").value=it?.initial_stock??""; $("m-reorder").value=it?.reorder_point??"";
+  $("m-loc").value=it?.location||""; $("m-note").value=it?.note||""; $("m-name").focus();
+}
+$("saveItemBtn").addEventListener("click", async () => {
+  const msg=$("mstMsg"), id=$("m-id").value, name=$("m-name").value.trim(), init=parseFloat($("m-init").value);
+  if(!name){ showMsg(msg,"型式・品名を入力してください。","err"); return; }
+  if(isNaN(init)){ showMsg(msg,"初期在庫数を入力してください（0でも可）。","err"); return; }
+  const payload={ name, unit:$("m-unit").value.trim()||null, initial_stock:init,
+    reorder_point:$("m-reorder").value!==""?parseFloat($("m-reorder").value):null,
+    location:$("m-loc").value.trim()||null, note:$("m-note").value.trim()||null };
+  $("saveItemBtn").disabled=true;
+  let error;
+  if(id){ ({error}=await db.from("items").update(payload).eq("id",id)); }
+  else  { ({error}=await db.from("items").insert(payload)); }
+  $("saveItemBtn").disabled=false;
+  if(error){ showMsg(msg,"保存に失敗しました："+error.message,"err"); return; }
+  showMsg(msg,id?"更新しました。":"登録しました。","ok");
+  $("itemForm").classList.add("hidden"); await loadItems(); await loadMaster();
+});
+async function loadMaster(){
+  const box=$("masterList"); box.innerHTML='<div class="spinner">読み込み中…</div>';
+  const { data, error } = await db.from("items").select("*").eq("is_active",true).order("name");
+  if(error){ box.innerHTML=`<div class="msg err">読み込み失敗：${esc(error.message)}</div>`; return; }
+  if(!data||!data.length){ box.innerHTML='<p class="muted center">まだ登録がありません。</p>'; return; }
+  box.innerHTML=data.map(i=>`<div class="item-admin">
+      <div class="top"><span class="name">${esc(i.name)}</span><button class="edit" data-id="${i.id}">編集</button></div>
+      <div class="stock-meta">単位:${esc(i.unit||"-")} / 初期:${i.initial_stock} / 発注点:${i.reorder_point??"-"} / ${esc(i.location||"-")}</div>
+    </div>`).join("");
+  box.querySelectorAll(".edit").forEach(b=>b.addEventListener("click", ()=>{ openItemForm(data.find(x=>x.id===b.dataset.id)); window.scrollTo({top:0,behavior:"smooth"}); }));
+}
+
+/* 履歴 */
+function monthRange(ym){ const [y,m]=ym.split("-").map(Number); const last=new Date(y,m,0).getDate();
+  return { from:`${y}-${String(m).padStart(2,"0")}-01`, to:`${y}-${String(m).padStart(2,"0")}-${String(last).padStart(2,"0")}` }; }
+let HISTORY_ALL=[];
+$("adm-load").addEventListener("click", loadHistory);
+$("adm-type").addEventListener("change", applyHistoryFilter);
+async function loadHistory(){
+  const ym=$("adm-month").value||thisMonthStr(); HISTORY_MONTH=ym;
+  const { from,to }=monthRange(ym), box=$("adm-list");
+  box.innerHTML='<div class="spinner">読み込み中…</div>';
+  const { data, error } = await db.rpc("list_transactions",{ p_from:from, p_to:to });
+  if(error){ box.innerHTML=`<div class="msg err">読み込み失敗：${esc(error.message)}</div>`; HISTORY_ALL=[]; HISTORY_CACHE=[]; return; }
+  HISTORY_ALL=data||[];
+  applyHistoryFilter();
+}
+function applyHistoryFilter(){
+  const t=$("adm-type").value;
+  HISTORY_CACHE = t ? HISTORY_ALL.filter(r=>r.tx_type===t) : HISTORY_ALL.slice();
+  renderHistory();
+}
+function renderHistory(){
+  const box=$("adm-list");
+  const [y,m]=HISTORY_MONTH.split("-");
+  const tlabel = $("adm-type").value ? "・"+$("adm-type").selectedOptions[0].textContent : "";
+  $("adm-summary").textContent=`${y}年${Number(m)}月${tlabel}：${HISTORY_CACHE.length}件`;
+  if(!HISTORY_CACHE.length){ box.innerHTML='<p class="muted center">該当する記録はありません。</p>'; return; }
+  box.innerHTML='<div class="tbl-wrap"><table class="tbl"><thead><tr>'+
+    '<th>日付</th><th>区分</th><th>型式・品名</th><th class="num">数量</th><th>工番</th><th>持出先/入庫元</th><th>担当者</th><th>ログイン</th><th>備考</th><th>証明書</th>'+
+    '</tr></thead><tbody>'+
+    HISTORY_CACHE.map(r=>`<tr>
+      <td>${r.tx_date}</td>
+      <td><span class="badge t-${r.tx_type}">${r.tx_type}</span></td>
+      <td class="wrap">${esc(r.item_name)}</td>
+      <td class="num">${r.quantity}${esc(r.unit||"")}</td>
+      <td>${esc(r.job_no||"")}</td>
+      <td class="wrap">${esc(r.counterparty||"")}</td>
+      <td>${esc(r.person||"")}</td>
+      <td>${esc(r.login_email||"")}</td>
+      <td class="wrap">${esc(r.note||"")}</td>
+      <td>${r.attachment_path?`<a href="#" class="cert" data-p="${encodeURIComponent(r.attachment_path)}"><i class="ti ti-paperclip"></i>開く</a>`:""}</td>
+    </tr>`).join("")+'</tbody></table></div>';
+  box.querySelectorAll("a.cert").forEach(a=>a.addEventListener("click", async (e)=>{
+    e.preventDefault();
+    const { data, error } = await db.storage.from("certificates").createSignedUrl(decodeURIComponent(a.dataset.p), 3600);
+    if(error||!data){ showMsg($("admMsg"),"証明書を開けませんでした。","err"); return; }
+    window.open(data.signedUrl, "_blank");
+  }));
+}
+/* 入出庫履歴CSV出力 */
+$("adm-csv").addEventListener("click", ()=>{
+  if(!HISTORY_CACHE.length){ showMsg($("admMsg"),"先に対象月を表示してください。","err"); return; }
+  const data=[["日付","区分","型式・品名","数量","単位","工番","持出先/入庫元","担当者","ログイン","備考","証明書"]];
+  HISTORY_CACHE.forEach(r=>data.push([r.tx_date,r.tx_type,r.item_name,r.quantity,r.unit||"",r.job_no||"",r.counterparty||"",r.person||"",r.login_email||"",r.note||"",r.attachment_path?"あり":""]));
+  downloadCSV(`入出庫台帳_${HISTORY_MONTH}${$("adm-type").value?("_"+$("adm-type").value):""}.csv`, data);
+});
+
+/* PDF */
+$("adm-pdf").addEventListener("click", () => {
+  if(!HISTORY_CACHE.length){ showMsg($("admMsg"),"先に対象月を表示してください（該当0件です）。","err"); return; }
+  const [y,m]=HISTORY_MONTH.split("-"), now=new Date();
+  const stamp=`${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()} ${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
+  const tsel=$("adm-type").value, tlabel=tsel?$("adm-type").selectedOptions[0].textContent:"";
+  const title = tsel==="処分" ? "廃棄（処分）一覧" : "入出庫台帳";
+  const rows=HISTORY_CACHE.map(r=>`<tr><td>${r.tx_date}</td><td>${r.tx_type}</td><td>${esc(r.item_name)}</td><td class="num">${r.quantity}</td><td>${esc(r.unit||"")}</td><td>${esc(r.job_no||"")}</td><td>${esc(r.counterparty||"")}</td><td>${esc(r.person||"")}</td><td>${esc(r.login_email||"")}</td><td>${esc(r.note||"")}</td><td>${r.attachment_path?"あり":""}</td></tr>`).join("");
+  $("printArea").innerHTML=`<h1>工事部 在庫管理　${title}</h1>
+    <div class="p-meta">対象月：${y}年${Number(m)}月${(tsel&&tsel!=="処分")?"　／　区分："+tlabel:""}　／　出力日時：${stamp}　／　件数：${HISTORY_CACHE.length}件</div>
+    <table><thead><tr><th>日付</th><th>区分</th><th>型式・品名</th><th>数量</th><th>単位</th><th>工番</th><th>持出先/入庫元</th><th>担当者</th><th>ログイン</th><th>備考</th><th>証明書</th></tr></thead>
+    <tbody>${rows}</tbody></table>`;
+  window.print();
+});
+
+/* 管理者管理 */
+async function loadAdmins(){
+  const box=$("adm-adminlist");
+  const { data, error } = await db.from("app_admins").select("email,added_at").order("added_at");
+  if(error){ box.innerHTML=`<div class="msg err">読み込み失敗：${esc(error.message)}</div>`; return; }
+  box.innerHTML=(data||[]).map(a=>{
+    const self=(a.email.toLowerCase()===(CURRENT_USER.email||"").toLowerCase());
+    return `<div class="adm-line"><span>${esc(a.email)}${self?' <span class="muted">(あなた)</span>':''}</span>
+      <button class="btn danger" data-email="${esc(a.email)}" data-self="${self?'1':'0'}">削除</button></div>`;
+  }).join("");
+  box.querySelectorAll("button[data-email]").forEach(b=>b.addEventListener("click", ()=>removeAdmin(b.dataset.email, b.dataset.self==='1')));
+}
+$("adm-addadmin").addEventListener("click", async () => {
+  const msg=$("admMsg"), email=$("adm-newadmin").value.trim().toLowerCase();
+  if(!email.endsWith(COMPANY_DOMAIN)){ showMsg(msg,`会社のメール（${COMPANY_DOMAIN}）のみ登録できます。`,"err"); return; }
+  const { error } = await db.from("app_admins").insert({ email, added_by:CURRENT_USER.email });
+  if(error){ showMsg(msg, error.message.includes("duplicate")?"すでに管理者です。":"追加に失敗しました："+error.message,"err"); return; }
+  showMsg(msg,`管理者に追加しました：${email}`,"ok"); $("adm-newadmin").value=""; loadAdmins();
+});
+async function removeAdmin(email, isSelf){
+  const msg=$("admMsg");
+  const q = isSelf
+    ? "自分の管理者権限を外します。よろしいですか？（外すと履歴・棚卸しなどの管理者機能が使えなくなります）"
+    : `管理者「${email}」を外します。よろしいですか？`;
+  if(!confirm(q)) return;
+  const { error } = await db.from("app_admins").delete().eq("email",email);
+  if(error){
+    const last = /最後の管理者/.test(error.message);
+    showMsg(msg, last ? "最後の管理者は削除できません。先に別の管理者を追加してください。" : "削除に失敗しました："+error.message, "err");
+    return;
+  }
+  showMsg(msg,`管理者から外しました：${email}`,"ok");
+  if(isSelf){ setTimeout(()=>location.reload(), 800); return; }
+  loadAdmins();
+}
+
+/* 棚卸し */
+async function loadStocktake(){
+  if(!$("stk-date").value) $("stk-date").value = todayStr();
+  const box=$("stk-list"); box.innerHTML='<div class="spinner">読み込み中…</div>';
+  const { data, error } = await db.rpc("list_stock");
+  if(error){ box.innerHTML=`<div class="msg err">読み込み失敗：${esc(error.message)}</div>`; return; }
+  const rows=data||[];
+  if(!rows.length){ box.innerHTML='<p class="muted center">型式がありません。「型式マスタ」から登録してください。</p>'; $("stk-summary").textContent=""; return; }
+  box.innerHTML = rows.map(r=>`<div class="stk-row">
+      <div class="stk-name">${esc(r.name)}${r.unit?` <span class="muted">（${esc(r.unit)}）</span>`:""}</div>
+      <div class="stk-line">
+        <span>システム</span><b>${Number(r.current_stock)}</b>
+        <input type="number" inputmode="decimal" step="any" class="stk-cnt" placeholder="実数" data-id="${r.id}" data-sys="${Number(r.current_stock)}" />
+        <span class="stk-diff">—</span>
+      </div>
+    </div>`).join("");
+  box.querySelectorAll(".stk-cnt").forEach(inp=>inp.addEventListener("input", ()=>{
+    const sys=Number(inp.dataset.sys), v=inp.value.trim();
+    const cell=inp.closest(".stk-row").querySelector(".stk-diff");
+    if(v===""){ cell.textContent="—"; cell.className="stk-diff"; }
+    else{ const d=Number(v)-sys; cell.textContent=(d>0?"+":"")+d; cell.className="stk-diff "+(d>0?"diff-pos":(d<0?"diff-neg":"")); }
+    updateStkSummary();
+  }));
+  updateStkSummary();
+}
+function updateStkSummary(){
+  let counted=0, diffs=0;
+  document.querySelectorAll("#stk-list .stk-cnt").forEach(inp=>{
+    if(inp.value.trim()!==""){ counted++; if(Number(inp.value)-Number(inp.dataset.sys)!==0) diffs++; }
+  });
+  $("stk-summary").textContent=`実数入力：${counted}件　／　差異あり：${diffs}件`;
+}
+$("stk-confirm").addEventListener("click", async ()=>{
+  const msg=$("stkMsg"), date=$("stk-date").value||todayStr();
+  const person=localStorage.getItem("person_name")||((CURRENT_USER&&CURRENT_USER.email||"").split("@")[0]);
+  const rows=[];
+  document.querySelectorAll("#stk-list .stk-cnt").forEach(inp=>{
+    if(inp.value.trim()==="") return;
+    const d=Number(inp.value)-Number(inp.dataset.sys);
+    if(d!==0) rows.push({ item_id:inp.dataset.id, tx_type:"棚卸調整", quantity:d, tx_date:date, person, note:"棚卸し" });
+  });
+  if(!rows.length){ showMsg(msg,"差異のある実数入力がありません。","err"); return; }
+  if(!confirm(`${rows.length}件の差異を在庫に反映します。よろしいですか？`)) return;
+  $("stk-confirm").disabled=true;
+  const { error } = await db.from("transactions").insert(rows);
+  $("stk-confirm").disabled=false;
+  if(error){ showMsg(msg,"調整の記録に失敗しました："+error.message,"err"); return; }
+  showMsg(msg,`${rows.length}件を調整し、在庫を実数に合わせました。`,"ok");
+  await loadStocktake();
+});
+
+boot();
+</script>
+</body>
+</html>

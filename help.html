@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="light dark" />
+<meta name="theme-color" content="#181b1f" />
+<title>使い方 | 工事部 在庫管理</title>
+<style>
+  :root{
+    --amber:#EF9F27; --amber-strong:#BA7517; --amber-ink:#412402;
+    --red:#E24B4A; --green:#1D9E75; --orange:#D85A30;
+    --page:#f1f0ea; --card:#ffffff; --line:#e4e3dc; --line-soft:#eeede7;
+    --text:#1b1f24; --muted:#6b7178; --header:#181b1f; --fill:#eeede7;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --page:#121519; --card:#1d2127; --line:#2f353d; --line-soft:#262b31;
+      --text:#e7eaee; --muted:#99a0a9; --header:#0e1013; --fill:#20242a; --amber-strong:#EF9F27; }
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--page); color:var(--text); line-height:1.75;
+    font-family:-apple-system,"Hiragino Kaku Gothic ProN","Yu Gothic UI","Meiryo",sans-serif;
+    -webkit-text-size-adjust:100%;}
+  header{position:sticky; top:0; z-index:5; background:var(--header); color:#fff; border-bottom:2px solid var(--amber);
+    padding:calc(env(safe-area-inset-top) + 12px) 18px 12px; display:flex; align-items:center; justify-content:space-between; gap:10px;}
+  header .t{font-size:15px; font-weight:700;} header .t b{color:var(--amber);}
+  header a{background:var(--amber); color:var(--amber-ink); text-decoration:none; font-weight:700; font-size:13px; padding:8px 14px; border-radius:9px; white-space:nowrap;}
+  main{max-width:760px; margin:0 auto; padding:20px 18px 60px;}
+  h1{font-size:22px; margin:6px 0 2px;}
+  .lead{color:var(--muted); font-size:14px; margin:0 0 18px;}
+  h2{font-size:17px; margin:30px 0 10px; padding-left:11px; border-left:5px solid var(--amber); }
+  p{margin:8px 0;}
+  ul{margin:8px 0 8px; padding-left:22px;} li{margin:5px 0;}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:6px 18px 14px; margin:10px 0;}
+  .note{background:var(--fill); border-radius:10px; padding:12px 14px; font-size:14px; color:var(--text); margin:12px 0;}
+  .note b{color:var(--amber-strong);}
+  code{background:var(--fill); padding:1px 6px; border-radius:5px; font-size:.92em;}
+  table{width:100%; border-collapse:collapse; margin:12px 0; font-size:14px;}
+  th,td{border:1px solid var(--line); padding:8px 10px; text-align:left; vertical-align:top;}
+  th{background:var(--fill); font-weight:700;}
+  .pill{display:inline-block; font-weight:700; font-size:12px; padding:2px 9px; border-radius:20px;}
+  .p-out{background:rgba(226,75,74,.15); color:var(--red);}
+  .p-in{background:rgba(29,158,117,.16); color:var(--green);}
+  .p-ret{background:rgba(216,90,48,.16); color:var(--orange);}
+  .p-dis{background:rgba(107,113,120,.2); color:var(--muted);}
+  .foot{color:var(--muted); font-size:13px; margin-top:36px; border-top:1px solid var(--line); padding-top:14px;}
+  a.link{color:var(--amber-strong); font-weight:700;}
+</style>
+</head>
+<body>
+<header>
+  <div class="t">📦 <b>工事部 在庫管理</b>　使い方</div>
+  <a href="/">アプリを開く</a>
+</header>
+<main>
+  <h1>工事部 在庫管理アプリ　使い方ガイド</h1>
+  <p class="lead">URL：<code>https://koji-zaiko.vercel.app</code>（iPhoneはSafariで開くのがおすすめ）</p>
+
+  <div class="card">
+  <h2>このアプリでできること</h2>
+  <p>倉庫・置場の在庫を、モノが動くたびにその場で記録するアプリです。出庫・入庫・返却・処分を記録すると在庫数が自動で計算されます。誰が・いつ・何を・どこへ動かしたかが残るので、月次の棚卸しや監査にも対応できます。</p>
+  </div>
+
+  <h2>1. ログイン方法</h2>
+  <ul>
+    <li>ブラウザで上のURLを開きます（iPhoneはSafari推奨）。</li>
+    <li>会社のメールアドレス（＠sunlife-corporation.jp）を入力し、「ログインリンクを送る」を押します。</li>
+    <li>届いたメールのリンクを開くと、ログイン完了です。</li>
+    <li>一度ログインすれば、その端末では次回から自動でログイン状態になります。</li>
+  </ul>
+  <div class="note">📌 メールのリンクは、<b>アプリを開いているブラウザと同じブラウザ</b>で開いてください（別ブラウザで開くとログインが反映されません）。メールが来ないときは迷惑メールもご確認ください。</div>
+
+  <h2>2. 出入庫を記録する（現場の方）</h2>
+  <p>下の「記録」タブで行います。区分を選び、必要な項目を入れて「この内容で記録する」を押すだけです。</p>
+  <table>
+    <tr><th>区分</th><th>こんなとき</th></tr>
+    <tr><td><span class="pill p-out">出庫</span></td><td>在庫を現場へ持ち出すとき</td></tr>
+    <tr><td><span class="pill p-in">入庫</span></td><td>資材が納品されたとき</td></tr>
+    <tr><td><span class="pill p-ret">返却</span></td><td>現場から在庫が戻ってきたとき</td></tr>
+    <tr><td><span class="pill p-dis">処分</span></td><td>在庫を廃棄するとき（処分証明書を添付）</td></tr>
+  </table>
+  <p><b>入力する項目</b></p>
+  <ul>
+    <li>型式・品名（一覧から選択）。<b>入庫のときだけ自由入力でき、無い品名は自動で新規登録</b>されます。</li>
+    <li>数量／日付／工番</li>
+    <li>持ち出し先・入庫元・返却元・引取先（区分に応じて表示）</li>
+    <li>担当者名（記入者）</li>
+    <li>写真・証明書の添付（任意。<b>処分のときは処分証明書</b>を添付）。スマホならその場で撮影もできます。</li>
+  </ul>
+  <p>記録すると、在庫数に自動で反映されます（出庫・処分は減り、入庫・返却は増えます）。</p>
+
+  <h2>3. 自分の記録を直す（当日のみ）</h2>
+  <ul>
+    <li>「記録」タブの下の <b>「今日の自分の記録」</b> に、自分がその日に入れた記録が並びます。</li>
+    <li><b>編集</b>：内容がフォームに戻るので、直して「更新する」を押します。</li>
+    <li><b>取消</b>：確認のうえ削除します（在庫は自動で計算し直されます）。</li>
+  </ul>
+  <div class="note">📌 訂正・取消できるのは <b>自分がその日に入力した記録だけ</b>です。翌日以降や他の人の記録は変更できません（監査のため）。直せないときは管理者に相談してください。</div>
+
+  <h2>4. 在庫を確認する</h2>
+  <ul>
+    <li>「在庫」タブで、型式ごとの現在庫数を確認できます。</li>
+    <li>在庫が少ない品目（発注点以下、または在庫0）は <b>行が赤く</b>なり「要発注」「在庫なし」と表示されます。</li>
+    <li>「型式で絞り込み」で目的の品目をすばやく探せます。</li>
+    <li><b>CSV</b>ボタンでExcel用ファイル、<b>PDF</b>ボタンで印刷・PDF保存ができます。</li>
+  </ul>
+
+  <h2>5. 型式マスタ（品目の登録）</h2>
+  <ul>
+    <li>「マスタ」タブで、扱う型式・品名を登録します（主に管理者）。</li>
+    <li>「＋ 新しい型式を登録」から、品名・単位・初期在庫数・発注点・保管場所を登録します。</li>
+    <li>発注点を設定すると、在庫がそこを下回ったとき「要発注」で知らせます。</li>
+  </ul>
+
+  <h2>6. 棚卸し（管理者向け）</h2>
+  <p>「棚卸し」タブで、実地棚卸しと差異チェックができます。初期棚卸し・月次棚卸しの両方に使えます。</p>
+  <ul>
+    <li>棚卸し基準日を選びます。</li>
+    <li>型式ごとに、現物を数えた「実数」を入力します。システム在庫との差異が自動表示されます（不足は赤・過剰は緑）。</li>
+    <li>「差異を確定して在庫を調整する」で、在庫が実数に合わせて調整され、記録に残ります。</li>
+  </ul>
+
+  <h2>7. 履歴・出力（管理者向け）</h2>
+  <ul>
+    <li>「履歴」タブで、入出庫の詳細（誰が・いつ・どこへ・何を・何個・備考・証明書）を確認できます。データは直近1年分を保持します（1年超は自動削除）。</li>
+    <li>対象月を選んで「表示」。</li>
+    <li><b>「区分でしぼり込み」で「処分（廃棄）だけ」</b>を選ぶと、廃棄したものの一覧になります。</li>
+    <li>「CSV」「PDF」で出力できます（絞り込んだ内容がそのまま出力されます）。</li>
+    <li>「管理者の管理」で、管理者の追加・削除ができます（会社メールのみ）。</li>
+  </ul>
+
+  <h2>8. 運用ルールとの対応</h2>
+  <table>
+    <tr><th>運用ルール</th><th>アプリでの対応</th></tr>
+    <tr><td>出庫台帳の記載徹底</td><td>「記録」で工番・日付・型式・数量・持ち出し先・担当者を記録</td></tr>
+    <tr><td>現物と数量の把握・棚卸し</td><td>「棚卸し」で実数入力→差異チェック→在庫調整</td></tr>
+    <tr><td>処分は証明書を保管</td><td>「処分」区分で記録し、処分証明書を添付・保管</td></tr>
+    <tr><td>経理との突合</td><td>在庫一覧・履歴をCSV／PDFで出力</td></tr>
+    <tr><td>決算・監査対応</td><td>訂正は当日・本人のみ（翌日以降は固定）／履歴・証明書を保持</td></tr>
+  </table>
+
+  <h2>9. 困ったとき</h2>
+  <ul>
+    <li><b>ログインできない</b>：会社メールのリンクを、アプリと同じブラウザ（iPhoneはSafari）で開いてください。迷惑メールもご確認を。</li>
+    <li><b>メールが届かない</b>：ログインメールは短時間に何通も送れません。少し時間をおいて再度お試しください。</li>
+    <li><b>在庫数がおかしい</b>：管理者にご連絡ください。「棚卸し」で実数に合わせられます。</li>
+    <li><b>記録を間違えた</b>：その日のうちなら「今日の自分の記録」から直せます。翌日以降は管理者にご相談ください。</li>
+  </ul>
+
+  <p class="foot">工事部 在庫管理アプリ／このページはいつでも <a class="link" href="/">アプリ</a> の画面下やログイン画面から開けます。</p>
+</main>
+</body>
+</html>

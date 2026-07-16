@@ -1,0 +1,11 @@
+{
+  "name": "工事部 在庫管理",
+  "short_name": "在庫管理",
+  "display": "browser",
+  "start_url": "/",
+  "background_color": "#181b1f",
+  "theme_color": "#181b1f",
+  "icons": [
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
