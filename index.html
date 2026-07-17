@@ -299,7 +299,8 @@
                 <div><label>日付 <span class="req">*</span></label><input id="f-date" type="date" /></div>
               </div>
               <label>工番</label>
-              <input id="f-job" type="text" placeholder="例: 2026-A-015" />
+              <input id="f-job" type="text" list="f-job-list" autocomplete="off" placeholder="例: 2026-A-015" />
+              <datalist id="f-job-list"></datalist>
             </div>
             <div>
               <label id="f-cp-label">持ち出し先（現場名）</label>
@@ -491,6 +492,7 @@ async function boot(){
       $("adminChip").classList.remove("hidden");
     }
     await loadItems();
+    await loadJobNos();
     await loadMyRecent();
   }else{
     $("app").classList.add("hidden"); $("login").classList.remove("hidden");
@@ -596,6 +598,12 @@ async function loadItems(){
   renderItemOptions();
   $("f-item-list").innerHTML = ITEMS_CACHE.map(i=>`<option value="${esc(i.name)}"></option>`).join("");
 }
+/* 工番の入力候補（過去に使った工番を全社員分、直近順で提示） */
+async function loadJobNos(){
+  const { data, error } = await db.rpc("list_job_nos");
+  if(error){ console.error(error); return; }
+  $("f-job-list").innerHTML = (data||[]).map(r=>`<option value="${esc(r.job_no)}"></option>`).join("");
+}
 /* 型式プルダウンの中身を再構築（入庫のときは「＋ 新しい品名を登録」を末尾に追加） */
 function renderItemOptions(){
   const inbound=(txType==="入庫") && !EDIT_ID;
@@ -640,7 +648,7 @@ $("submitBtn").addEventListener("click", async () => {
     localStorage.setItem("person_name", person);
     showMsg(msg,"✓ 記録を更新しました。","ok");
     cancelEdit();
-    await loadItems(); await loadMyRecent();
+    await loadItems(); await loadJobNos(); await loadMyRecent();
     window.scrollTo({top:0, behavior:"smooth"});
     return;
   }
@@ -694,7 +702,7 @@ $("submitBtn").addEventListener("click", async () => {
   if(error){ showMsg(msg,"記録に失敗しました："+error.message,"err"); return; }
   localStorage.setItem("person_name", person);
   showMsg(msg,`✓ 記録しました：${txType} ${itemName} ${qty}`,"ok");
-  await loadItems(); await loadMyRecent();
+  await loadItems(); await loadJobNos(); await loadMyRecent();
   $("f-item").value=""; $("f-item-free").value=""; $("f-unit-new").value="";
   $("f-qty").value=""; $("f-job").value=""; $("f-cp").value=""; $("f-note").value=""; $("f-file").value="";
   updateItemFreeUI();
