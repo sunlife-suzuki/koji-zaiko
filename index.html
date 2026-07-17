@@ -131,6 +131,17 @@
     input[type="month"]::-webkit-date-and-time-value{ text-align:center; }
   }
   .grid2>div{min-width:0;}
+  /* 工番の検索ドロップダウン */
+  .jobwrap{position:relative;}
+  .jobdd{position:absolute; z-index:60; left:0; right:0; top:calc(100% + 4px);
+    background:var(--card); border:1px solid var(--input-border); border-radius:10px;
+    max-height:280px; overflow-y:auto; -webkit-overflow-scrolling:touch; box-shadow:var(--shadow);}
+  .jobdd .jrow{padding:10px 12px; border-bottom:1px solid var(--line-soft); cursor:pointer;}
+  .jobdd .jrow:last-child{border-bottom:none;}
+  .jobdd .jrow:active,.jobdd .jrow.on{background:var(--fill);}
+  .jobdd .jc{font-weight:700; font-size:14px;}
+  .jobdd .jm{font-size:12px; color:var(--muted); margin-top:2px; line-height:1.4;}
+  .jobdd .jempty{padding:12px; color:var(--muted); font-size:13px; text-align:center;}
   input:focus,select:focus,textarea:focus{outline:none; border-color:var(--amber); box-shadow:0 0 0 3px rgba(239,159,39,.22);}
   .btn{display:block; width:100%; border:none; border-radius:12px; padding:15px; font-size:16px; font-weight:700; background:var(--amber); color:var(--amber-ink); margin-top:20px; cursor:pointer;}
   .btn:active{transform:scale(.99);}
@@ -299,8 +310,10 @@
                 <div><label>日付 <span class="req">*</span></label><input id="f-date" type="date" /></div>
               </div>
               <label>工番</label>
-              <input id="f-job" type="text" list="f-job-list" autocomplete="off" placeholder="例: 2026-A-015" />
-              <datalist id="f-job-list"></datalist>
+              <div class="jobwrap">
+                <input id="f-job" type="text" autocomplete="off" placeholder="工番・発注者・所在地で検索" />
+                <div id="f-job-dd" class="jobdd hidden"></div>
+              </div>
             </div>
             <div>
               <label id="f-cp-label">持ち出し先（現場名）</label>
@@ -460,6 +473,7 @@ function downloadCSV(filename, rows){
 }
 
 let CURRENT_USER=null, IS_ADMIN=false, EDIT_ID=null, ITEMS_CACHE=[], HISTORY_CACHE=[], HISTORY_MONTH="";
+let JOBCODES_CACHE=[], JOBNOS_CACHE=[];
 
 /* 認証 */
 $("loginBtn").addEventListener("click", async () => {
@@ -492,6 +506,7 @@ async function boot(){
       $("adminChip").classList.remove("hidden");
     }
     await loadItems();
+    await loadJobCodes();
     await loadJobNos();
     await loadMyRecent();
   }else{
@@ -598,12 +613,50 @@ async function loadItems(){
   renderItemOptions();
   $("f-item-list").innerHTML = ITEMS_CACHE.map(i=>`<option value="${esc(i.name)}"></option>`).join("");
 }
-/* 工番の入力候補（過去に使った工番を全社員分、直近順で提示） */
+/* 工事コードマスタ（工番の検索候補の本体） */
+async function loadJobCodes(){
+  const { data, error } = await db.from("job_codes")
+    .select("code,department,orderer,work_name,place").eq("is_active",true).order("code");
+  if(error){ console.error(error); return; }
+  JOBCODES_CACHE = data||[];
+}
+/* 過去に実際に使われた工番（マスタに無いものの補完用・全社員分） */
 async function loadJobNos(){
   const { data, error } = await db.rpc("list_job_nos");
   if(error){ console.error(error); return; }
-  $("f-job-list").innerHTML = (data||[]).map(r=>`<option value="${esc(r.job_no)}"></option>`).join("");
+  JOBNOS_CACHE = (data||[]).map(r=>r.job_no);
 }
+/* 工番の検索候補：マスタ ＋ (マスタに無い)過去使用工番 */
+function jobSearchList(){
+  const inMaster = new Set(JOBCODES_CACHE.map(j=>j.code));
+  const extra = JOBNOS_CACHE.filter(c=>c && !inMaster.has(c)).map(c=>({code:c, _past:true}));
+  return JOBCODES_CACHE.concat(extra);
+}
+function renderJobDD(){
+  const dd=$("f-job-dd"), q=normName($("f-job").value), list=jobSearchList();
+  const hits=(q ? list.filter(j=>{
+      const hay=normName([j.code,j.orderer,j.work_name,j.place,j.department].filter(Boolean).join(" "));
+      return hay.includes(q);
+    }) : list).slice(0,30);
+  if(!hits.length){
+    dd.innerHTML='<div class="jempty">該当なし（そのまま手入力もできます）</div>';
+  }else{
+    dd.innerHTML=hits.map(j=>{
+      const meta=[j.orderer,j.work_name,j.place].filter(Boolean).join(' / ');
+      return `<div class="jrow" data-code="${esc(j.code)}"><div class="jc">${esc(j.code)}${j._past?'　<span class="jm" style="display:inline">（過去に使用）</span>':''}</div>${meta?`<div class="jm">${esc(meta)}</div>`:''}</div>`;
+    }).join("");
+  }
+  dd.classList.remove("hidden");
+  dd.querySelectorAll(".jrow").forEach(r=>r.addEventListener("mousedown", e=>{
+    e.preventDefault();
+    $("f-job").value=r.dataset.code;
+    dd.classList.add("hidden");
+  }));
+}
+$("f-job").addEventListener("focus", renderJobDD);
+$("f-job").addEventListener("input", renderJobDD);
+$("f-job").addEventListener("blur", ()=>setTimeout(()=>$("f-job-dd").classList.add("hidden"),150));
+document.addEventListener("click", e=>{ if(!e.target.closest(".jobwrap")) $("f-job-dd").classList.add("hidden"); });
 /* 型式プルダウンの中身を再構築（入庫のときは「＋ 新しい品名を登録」を末尾に追加） */
 function renderItemOptions(){
   const inbound=(txType==="入庫") && !EDIT_ID;
