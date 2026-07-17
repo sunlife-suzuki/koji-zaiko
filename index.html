@@ -113,6 +113,13 @@
   }
   input, select{ height:46px; }
   textarea{ height:auto; }
+  /* iOS Safari は date / month 入力の値を中央寄せで描画し、幅からはみ出して見える。
+     他の入力欄と同じく左寄せに揃える（PC の日付ピッカーのアイコンは残す） */
+  input[type="date"], input[type="month"]{ text-align:left; }
+  input[type="date"]::-webkit-date-and-time-value,
+  input[type="month"]::-webkit-date-and-time-value{ text-align:left; margin:0; }
+  input[type="date"]::-webkit-datetime-edit,
+  input[type="month"]::-webkit-datetime-edit{ padding:0; text-align:left; }
   .grid2>div{min-width:0;}
   input:focus,select:focus,textarea:focus{outline:none; border-color:var(--amber); box-shadow:0 0 0 3px rgba(239,159,39,.22);}
   .btn{display:block; width:100%; border:none; border-radius:12px; padding:15px; font-size:16px; font-weight:700; background:var(--amber); color:var(--amber-ink); margin-top:20px; cursor:pointer;}
