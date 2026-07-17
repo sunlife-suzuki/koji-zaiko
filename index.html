@@ -113,13 +113,23 @@
   }
   input, select{ height:46px; }
   textarea{ height:auto; }
-  /* iOS Safari は date / month 入力の値のサイズ・入力欄の高さを input 本体の
-     font-size で決めるため、本体に直接指定して中央寄せのまま枠内に収める */
+  /* iOS Safari のネイティブ日付コントロールは固有の最小サイズを持ち、
+     width:100% / min-width:0 / height を無視して縮まないため、狭い列で枠から
+     はみ出す。スマホ幅では -webkit-appearance:none で通常のボックス化し、
+     幅・高さの指定に従わせる（タップ時の日付ピッカーは iOS 側で従来どおり開く）。
+     PC はネイティブの月ピッカーを残すため適用しない。 */
   input[type="date"], input[type="month"]{ font-size:14px; line-height:1.2; }
   input[type="date"]::-webkit-date-and-time-value,
   input[type="month"]::-webkit-date-and-time-value{ font-size:14px; }
   input[type="date"]::-webkit-datetime-edit,
   input[type="month"]::-webkit-datetime-edit{ font-size:14px; padding:0; }
+  @media (max-width:859px){
+    input[type="date"], input[type="month"]{
+      -webkit-appearance:none; appearance:none; text-align:center; min-height:0;
+    }
+    input[type="date"]::-webkit-date-and-time-value,
+    input[type="month"]::-webkit-date-and-time-value{ text-align:center; }
+  }
   .grid2>div{min-width:0;}
   input:focus,select:focus,textarea:focus{outline:none; border-color:var(--amber); box-shadow:0 0 0 3px rgba(239,159,39,.22);}
   .btn{display:block; width:100%; border:none; border-radius:12px; padding:15px; font-size:16px; font-weight:700; background:var(--amber); color:var(--amber-ink); margin-top:20px; cursor:pointer;}
