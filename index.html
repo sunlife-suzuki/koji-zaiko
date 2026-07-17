@@ -5,11 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="color-scheme" content="light dark" />
 <meta name="theme-color" content="#181b1f" />
-<title>工事部 在庫管理</title>
+<title>工事部 資材在庫管理</title>
 <link rel="apple-touch-icon" href="/icon-512.png" />
 <link rel="icon" type="image/png" href="/icon-512.png" />
 <link rel="manifest" href="/manifest.webmanifest" />
-<meta name="apple-mobile-web-app-title" content="在庫管理" />
+<meta name="apple-mobile-web-app-title" content="資材在庫管理" />
 <style>
   :root{
     --amber:#EF9F27; --amber-strong:#BA7517; --amber-ink:#412402;
@@ -214,7 +214,7 @@
 <div id="login" class="login-wrap hidden">
   <div class="login-card">
     <div class="login-logo"><i class="ti ti-building-warehouse"></i></div>
-    <h1 class="center" style="font-size:20px; margin:0 0 6px;">工事部 在庫管理</h1>
+    <h1 class="center" style="font-size:20px; margin:0 0 6px;">工事部 資材在庫管理</h1>
     <p class="center muted" style="margin:0 0 18px;">会社のメールアドレスでログインします。届いたメールのリンクを開いてください。</p>
     <div id="loginMsg" class="msg"></div>
     <label>会社メールアドレス <span class="req">*</span></label>
@@ -230,7 +230,7 @@
 
   <!-- PC: サイドバー -->
   <aside class="sidebar">
-    <div class="brand"><i class="ti ti-building-warehouse"></i> <span>工事部 在庫管理</span></div>
+    <div class="brand"><i class="ti ti-building-warehouse"></i> <span>工事部 資材在庫管理</span></div>
     <button class="side-link active" data-view="record"><i class="ti ti-pencil-plus"></i> 記録する</button>
     <button class="side-link" data-view="stock"><i class="ti ti-chart-bar"></i> 在庫一覧</button>
     <button class="side-link" data-view="master"><i class="ti ti-settings"></i> 型式マスタ</button>
@@ -247,7 +247,7 @@
     <!-- スマホ: 上部バー -->
     <header class="topbar">
       <div>
-        <div class="brand"><i class="ti ti-building-warehouse"></i> 工事部 在庫管理<span id="adminChip" class="adminchip hidden">管理者</span></div>
+        <div class="brand"><i class="ti ti-building-warehouse"></i> 工事部 資材在庫管理<span id="adminChip" class="adminchip hidden">管理者</span></div>
         <div class="who" id="whoami"></div>
       </div>
       <button class="logout js-logout">ログアウト</button>
@@ -705,7 +705,7 @@ $("stock-pdf").addEventListener("click", () => {
     if(warn||cur<=0) low++;
     return `<tr><td class="num">${idx+1}</td><td>${esc(r.name)}</td><td>${esc(r.location||"")}</td><td class="num">${cur}</td><td>${esc(r.unit||"")}</td><td class="num">${r.reorder_point??""}</td><td>${status}</td><td>${esc(r.note||"")}</td></tr>`;
   }).join("");
-  $("printArea").innerHTML=`<h1>工事部 在庫管理　現在庫一覧</h1>
+  $("printArea").innerHTML=`<h1>工事部 資材在庫管理　現在庫一覧</h1>
     <div class="p-meta">出力日時：${stamp}　／　型式数：${rows.length}　／　要発注・在庫なし：${low}件</div>
     <table><thead><tr><th>No.</th><th>型式・品名</th><th>保管場所</th><th>現在庫数</th><th>単位</th><th>発注点</th><th>状態</th><th>備考</th></tr></thead>
     <tbody>${body}</tbody></table>`;
@@ -813,7 +813,7 @@ $("adm-pdf").addEventListener("click", () => {
   const tsel=$("adm-type").value, tlabel=tsel?$("adm-type").selectedOptions[0].textContent:"";
   const title = tsel==="処分" ? "廃棄（処分）一覧" : "入出庫台帳";
   const rows=HISTORY_CACHE.map(r=>`<tr><td>${r.tx_date}</td><td>${r.tx_type}</td><td>${esc(r.item_name)}</td><td class="num">${r.quantity}</td><td>${esc(r.unit||"")}</td><td>${esc(r.job_no||"")}</td><td>${esc(r.counterparty||"")}</td><td>${esc(r.person||"")}</td><td>${esc(r.login_email||"")}</td><td>${esc(r.note||"")}</td><td>${r.attachment_path?"あり":""}</td></tr>`).join("");
-  $("printArea").innerHTML=`<h1>工事部 在庫管理　${title}</h1>
+  $("printArea").innerHTML=`<h1>工事部 資材在庫管理　${title}</h1>
     <div class="p-meta">対象月：${y}年${Number(m)}月${(tsel&&tsel!=="処分")?"　／　区分："+tlabel:""}　／　出力日時：${stamp}　／　件数：${HISTORY_CACHE.length}件</div>
     <table><thead><tr><th>日付</th><th>区分</th><th>型式・品名</th><th>数量</th><th>単位</th><th>工番</th><th>持出先/入庫元</th><th>担当者</th><th>ログイン</th><th>備考</th><th>証明書</th></tr></thead>
     <tbody>${rows}</tbody></table>`;

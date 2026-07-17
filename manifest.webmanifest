@@ -1,6 +1,6 @@
 {
-  "name": "工事部 在庫管理",
-  "short_name": "在庫管理",
+  "name": "工事部 資材在庫管理",
+  "short_name": "資材在庫管理",
   "display": "browser",
   "start_url": "/",
   "background_color": "#181b1f",
