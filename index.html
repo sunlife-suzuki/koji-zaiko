@@ -113,8 +113,9 @@
   }
   input, select{ height:46px; }
   textarea{ height:auto; }
-  /* iOS Safari は date / month 入力の値が大きく、枠からはみ出して見える。
-     中央寄せ（iOSの既定）は維持したまま、値のサイズを少し抑えて枠内に収める */
+  /* iOS Safari は date / month 入力の値のサイズ・入力欄の高さを input 本体の
+     font-size で決めるため、本体に直接指定して中央寄せのまま枠内に収める */
+  input[type="date"], input[type="month"]{ font-size:14px; line-height:1.2; }
   input[type="date"]::-webkit-date-and-time-value,
   input[type="month"]::-webkit-date-and-time-value{ font-size:14px; }
   input[type="date"]::-webkit-datetime-edit,
