@@ -280,9 +280,9 @@
             <div>
               <label>型式・品名 <span class="req">*</span></label>
               <select id="f-item"><option value="">選択してください</option></select>
-              <input id="f-item-free" class="hidden" type="text" list="f-item-list" autocomplete="off" placeholder="品名を入力（新規もOK）" />
+              <input id="f-item-free" class="hidden" type="text" list="f-item-list" autocomplete="off" placeholder="新しい品名を入力" />
               <datalist id="f-item-list"></datalist>
-              <p id="f-item-hint" class="muted hidden" style="margin:6px 0 0;">既存にない品名は、新しい型式として自動登録されます。</p>
+              <p id="f-item-hint" class="muted hidden" style="margin:6px 0 0;">既存の品名はリストから選んでください。無い場合は「＋ 新しい品名を登録」を選ぶと入力できます。</p>
               <div id="f-newunit-wrap" class="hidden"><label>単位（新しい品名のとき・任意）</label><input id="f-unit-new" type="text" placeholder="巻 / 本 / 個 / m" /></div>
               <div class="grid2">
                 <div><label>数量 <span class="req">*</span></label><input id="f-qty" type="number" inputmode="decimal" min="0" step="any" placeholder="例: 3" /></div>
@@ -504,10 +504,11 @@ document.querySelectorAll("[data-view]").forEach(b=>b.addEventListener("click", 
 let txType="出庫";
 function applyTypeUI(){
   const inbound=(txType==="入庫") && !EDIT_ID;
-  $("f-item").classList.toggle("hidden", inbound);
-  $("f-item-free").classList.toggle("hidden", !inbound);
+  renderItemOptions();
+  $("f-item").classList.remove("hidden");           // 入庫でもプルダウンで既存を選べる
+  if(!inbound && $("f-item").value==="__new__") $("f-item").value="";
+  updateItemFreeUI();
   $("f-item-hint").classList.toggle("hidden", !inbound);
-  $("f-newunit-wrap").classList.toggle("hidden", !inbound);
   let cl,cp;
   if(txType==="出庫"){ cl="持ち出し先（現場名）"; cp="例: ○○邸 新築現場"; }
   else if(txType==="入庫"){ cl="入庫元"; cp="例: △△商事"; }
@@ -525,14 +526,74 @@ document.querySelectorAll("#seg button").forEach(b=>b.addEventListener("click", 
 document.querySelector('#seg button[data-v="出庫"]').classList.add("on");
 applyTypeUI();
 
+/* 入庫で「＋ 新しい品名を登録」を選んだときだけ自由入力欄を出す */
+function updateItemFreeUI(){
+  const wantNew=(txType==="入庫") && !EDIT_ID && $("f-item").value==="__new__";
+  $("f-item-free").classList.toggle("hidden", !wantNew);
+  $("f-newunit-wrap").classList.toggle("hidden", !wantNew);
+}
+$("f-item").addEventListener("change", ()=>{
+  updateItemFreeUI();
+  if($("f-item").value==="__new__") $("f-item-free").focus();
+});
+
+/* 品名の表記ゆれ吸収（全角英数→半角・空白除去・小文字化） */
+function normName(s){
+  return (s||"").trim()
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g, c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0))
+    .replace(/[　\s]+/g,"")
+    .toLowerCase();
+}
+function levenshtein(a,b){
+  const m=a.length,n=b.length; if(!m)return n; if(!n)return m;
+  const d=Array.from({length:m+1},(_,i)=>[i].concat(Array(n).fill(0)));
+  for(let j=0;j<=n;j++) d[0][j]=j;
+  for(let i=1;i<=m;i++) for(let j=1;j<=n;j++){
+    const c=a[i-1]===b[j-1]?0:1;
+    d[i][j]=Math.min(d[i-1][j]+1, d[i][j-1]+1, d[i-1][j-1]+c);
+  }
+  return d[m][n];
+}
+/* 入力名に対して、完全一致（表記ゆれ含む）と類似候補を探す */
+function matchItems(name){
+  const n=normName(name); if(!n) return { exact:null, similar:[] };
+  let exact=null; const cand=[];
+  for(const it of ITEMS_CACHE){
+    const ni=normName(it.name);
+    if(!ni) continue;
+    if(ni===n){ exact=it; continue; }
+    const dist=levenshtein(n,ni), maxLen=Math.max(n.length,ni.length);
+    const sim=1-dist/maxLen;
+    if(sim>=0.7 || (Math.min(n.length,ni.length)>=3 && (ni.includes(n)||n.includes(ni)))){
+      cand.push({ it, sim });
+    }
+  }
+  cand.sort((a,b)=>b.sim-a.sim);
+  return { exact, similar:cand.slice(0,3).map(x=>x.it) };
+}
+/* 新しい型式を登録して id を返す */
+async function createNewItem(name, unit){
+  const { data, error } = await db.from("items")
+    .insert({ name, unit:unit||null, initial_stock:0 }).select("id").single();
+  return { id:data?.id, error };
+}
+
 /* 型式読み込み */
 async function loadItems(){
   const { data, error } = await db.from("items").select("id,name,unit").eq("is_active",true).order("name");
   if(error){ console.error(error); return; }
   ITEMS_CACHE = data||[];
-  $("f-item").innerHTML = '<option value="">選択してください</option>' +
-    ITEMS_CACHE.map(i=>`<option value="${i.id}">${esc(i.name)}${i.unit?`（${esc(i.unit)}）`:""}</option>`).join("");
+  renderItemOptions();
   $("f-item-list").innerHTML = ITEMS_CACHE.map(i=>`<option value="${esc(i.name)}"></option>`).join("");
+}
+/* 型式プルダウンの中身を再構築（入庫のときは「＋ 新しい品名を登録」を末尾に追加） */
+function renderItemOptions(){
+  const inbound=(txType==="入庫") && !EDIT_ID;
+  const prev=$("f-item").value;
+  $("f-item").innerHTML = '<option value="">選択してください</option>' +
+    ITEMS_CACHE.map(i=>`<option value="${i.id}">${esc(i.name)}${i.unit?`（${esc(i.unit)}）`:""}</option>`).join("") +
+    (inbound ? '<option value="__new__">＋ 新しい品名を登録</option>' : '');
+  if([...$("f-item").options].some(o=>o.value===prev)) $("f-item").value=prev;
 }
 
 /* 記録 */
@@ -577,16 +638,37 @@ $("submitBtn").addEventListener("click", async () => {
   // ===== 新規記録 =====
   let item_id, itemName;
   if(txType==="入庫"){
-    itemName = $("f-item-free").value.trim();
-    if(!itemName){ showMsg(msg,"品名を入力してください。","err"); $("submitBtn").disabled=false; return; }
-    const found = ITEMS_CACHE.find(i => (i.name||"").trim().toLowerCase() === itemName.toLowerCase());
-    if(found){ item_id = found.id; }
-    else {
-      const { data:ni, error:ce } = await db.from("items")
-        .insert({ name:itemName, unit:$("f-unit-new").value.trim()||null, initial_stock:0 })
-        .select("id").single();
-      if(ce){ showMsg(msg,"新しい品名の登録に失敗しました："+ce.message,"err"); $("submitBtn").disabled=false; return; }
-      item_id = ni.id;
+    const sel=$("f-item").value;
+    if(sel && sel!=="__new__"){
+      // 既存品番をプルダウンから選択 → その品番に入庫
+      item_id=sel;
+      itemName=ITEMS_CACHE.find(i=>i.id===item_id)?.name || "";
+    } else {
+      // 「＋ 新しい品名を登録」→ 自由入力
+      itemName = $("f-item-free").value.trim();
+      if(!itemName){ showMsg(msg, sel==="__new__" ? "新しい品名を入力してください。" : "型式・品名を選んでください。","err"); $("submitBtn").disabled=false; return; }
+      const { exact, similar } = matchItems(itemName);
+      if(exact){
+        // 表記ゆれを含め既存と実質同じ → 既存品番に入庫
+        item_id=exact.id; itemName=exact.name;
+      } else if(similar.length){
+        // 似た品番がある → 二重登録防止の確認
+        const top=similar[0];
+        const useExisting = confirm(
+          `もしかして「${top.name}」ですか？\n\n入力した「${itemName}」に近い品名が既にあります。\n\n「OK」＝既存の『${top.name}』に入庫する\n「キャンセル」＝入力どおり新しい品名として登録する`
+        );
+        if(useExisting){ item_id=top.id; itemName=top.name; }
+        else {
+          const r=await createNewItem(itemName, $("f-unit-new").value.trim());
+          if(r.error){ showMsg(msg,"新しい品名の登録に失敗しました："+r.error.message,"err"); $("submitBtn").disabled=false; return; }
+          item_id=r.id;
+        }
+      } else {
+        // 完全に新規
+        const r=await createNewItem(itemName, $("f-unit-new").value.trim());
+        if(r.error){ showMsg(msg,"新しい品名の登録に失敗しました："+r.error.message,"err"); $("submitBtn").disabled=false; return; }
+        item_id=r.id;
+      }
     }
   } else {
     item_id = $("f-item").value;
@@ -605,6 +687,7 @@ $("submitBtn").addEventListener("click", async () => {
   await loadItems(); await loadMyRecent();
   $("f-item").value=""; $("f-item-free").value=""; $("f-unit-new").value="";
   $("f-qty").value=""; $("f-job").value=""; $("f-cp").value=""; $("f-note").value=""; $("f-file").value="";
+  updateItemFreeUI();
   window.scrollTo({top:0, behavior:"smooth"});
 });
 
