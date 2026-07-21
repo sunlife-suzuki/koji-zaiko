@@ -282,7 +282,7 @@
     <div class="brand"><i class="ti ti-building-warehouse"></i> <span>工事部 資材在庫管理</span></div>
     <button class="side-link active" data-view="record"><i class="ti ti-pencil-plus"></i> 記録する</button>
     <button class="side-link" data-view="stock"><i class="ti ti-chart-bar"></i> 在庫一覧</button>
-    <button class="side-link" data-view="master"><i class="ti ti-settings"></i> 型式マスタ</button>
+    <button class="side-link" data-view="master"><i class="ti ti-settings"></i> マスタ</button>
     <button class="side-link nav-admin hidden" data-view="stocktake"><i class="ti ti-clipboard-check"></i> 棚卸し</button>
     <button class="side-link nav-admin hidden" data-view="admin"><i class="ti ti-history"></i> 履歴・出力</button>
     <div class="side-foot">
@@ -383,7 +383,7 @@
 
       <!-- 型式マスタ -->
       <section id="view-master" class="hidden">
-        <h1 class="page-title">型式マスタ</h1>
+        <h1 class="page-title">マスタ</h1>
         <div id="mstMsg" class="msg"></div>
         <div class="card">
           <h2>型式マスタ管理</h2>
@@ -410,6 +410,33 @@
         <div class="card">
           <h2>登録済みの型式</h2>
           <div id="masterList"><div class="spinner">読み込み中…</div></div>
+        </div>
+
+        <div class="card nav-admin hidden">
+          <h2>工番マスタ（工事コード）</h2>
+          <p class="sub">「記録する」の工番候補に出る工事コードを管理します。新しい案件が増えたらここで追加できます（管理者のみ）。</p>
+          <button id="newJobCodeBtn" class="btn sub"><i class="ti ti-plus"></i> 新しい工事コードを登録</button>
+          <div id="jobCodeForm" class="hidden" style="margin-top:14px;">
+            <input id="jc-id" type="hidden" />
+            <label>工事コード <span class="req">*</span></label>
+            <input id="jc-code" type="text" placeholder="例: 11518-003-0100654" />
+            <div class="grid2">
+              <div><label>部門</label><input id="jc-dept" type="text" placeholder="例: 茨城" /></div>
+              <div><label>発注者</label><input id="jc-orderer" type="text" placeholder="任意" /></div>
+            </div>
+            <label>工事名</label>
+            <input id="jc-work" type="text" placeholder="任意" />
+            <label>所在地</label>
+            <input id="jc-place" type="text" placeholder="任意" />
+            <button id="saveJobCodeBtn" class="btn"><i class="ti ti-device-floppy"></i> 保存する</button>
+            <button id="cancelJobCodeBtn" class="btn sub">キャンセル</button>
+            <button id="delJobCodeBtn" class="btn danger hidden"><i class="ti ti-trash"></i> このコードを削除</button>
+          </div>
+        </div>
+        <div class="card nav-admin hidden">
+          <h2>登録済みの工事コード</h2>
+          <input id="jobCodeSearch" type="search" placeholder="工事コード・発注者・所在地で絞り込み…" style="margin:4px 0 8px;" />
+          <div id="jobCodeList"><div class="spinner">読み込み中…</div></div>
         </div>
       </section>
 
@@ -551,7 +578,7 @@ function switchView(v){
   document.querySelectorAll("[data-view]").forEach(x=>x.classList.toggle("active", x.dataset.view===v));
   ["record","stock","master","stocktake","admin"].forEach(n=>$("view-"+n).classList.toggle("hidden", n!==v));
   if(v==="stock") loadStock();
-  if(v==="master") loadMaster();
+  if(v==="master"){ loadMaster(); loadJobMaster(); }
   if(v==="stocktake") loadStocktake();
   if(v==="admin"){ loadHistory(); loadAdmins(); }
   window.scrollTo({top:0});
@@ -1011,6 +1038,61 @@ async function loadMaster(){
     </div>`).join("");
   box.querySelectorAll(".edit").forEach(b=>b.addEventListener("click", ()=>{ openItemForm(data.find(x=>x.id===b.dataset.id)); window.scrollTo({top:0,behavior:"smooth"}); }));
 }
+
+/* 工番マスタ（工事コード）管理 */
+let JOBCODES_ALL=[];
+$("newJobCodeBtn").addEventListener("click", ()=>openJobCodeForm(null));
+$("cancelJobCodeBtn").addEventListener("click", ()=>$("jobCodeForm").classList.add("hidden"));
+$("jobCodeSearch").addEventListener("input", renderJobMaster);
+function openJobCodeForm(jc){
+  $("jobCodeForm").classList.remove("hidden");
+  $("jc-id").value=jc?.id||""; $("jc-code").value=jc?.code||"";
+  $("jc-dept").value=jc?.department||""; $("jc-orderer").value=jc?.orderer||"";
+  $("jc-work").value=jc?.work_name||""; $("jc-place").value=jc?.place||"";
+  $("delJobCodeBtn").classList.toggle("hidden", !jc);
+  $("jc-code").focus();
+}
+async function loadJobMaster(){
+  const box=$("jobCodeList"); box.innerHTML='<div class="spinner">読み込み中…</div>';
+  const { data, error } = await db.from("job_codes").select("*").eq("is_active",true).order("code");
+  if(error){ box.innerHTML=`<div class="msg err">読み込み失敗：${esc(error.message)}</div>`; return; }
+  JOBCODES_ALL=data||[]; renderJobMaster();
+}
+function renderJobMaster(){
+  const kw=normName($("jobCodeSearch").value), box=$("jobCodeList");
+  const list=JOBCODES_ALL.filter(j=>!kw || normName([j.code,j.orderer,j.work_name,j.place,j.department].filter(Boolean).join(" ")).includes(kw));
+  if(!list.length){ box.innerHTML='<p class="muted center">該当する工事コードがありません。</p>'; return; }
+  box.innerHTML=list.slice(0,300).map(j=>`<div class="item-admin">
+      <div class="top"><span class="name">${esc(j.code)}</span><button class="edit" data-id="${j.id}">編集</button></div>
+      <div class="stock-meta">${[j.orderer,j.work_name,j.place,j.department].filter(Boolean).map(esc).join(" / ")||"—"}</div>
+    </div>`).join("") + (list.length>300?`<p class="muted center">ほか ${list.length-300} 件（絞り込んでください）</p>`:"");
+  box.querySelectorAll(".edit").forEach(b=>b.addEventListener("click", ()=>{ openJobCodeForm(JOBCODES_ALL.find(x=>x.id===b.dataset.id)); window.scrollTo({top:0,behavior:"smooth"}); }));
+}
+$("saveJobCodeBtn").addEventListener("click", async ()=>{
+  const msg=$("mstMsg"), id=$("jc-id").value, code=$("jc-code").value.trim();
+  if(!code){ showMsg(msg,"工事コードを入力してください。","err"); return; }
+  const payload={ code, department:$("jc-dept").value.trim()||null, orderer:$("jc-orderer").value.trim()||null,
+    work_name:$("jc-work").value.trim()||null, place:$("jc-place").value.trim()||null };
+  $("saveJobCodeBtn").disabled=true;
+  let error;
+  if(id){ ({error}=await db.from("job_codes").update(payload).eq("id",id)); }
+  else  { ({error}=await db.from("job_codes").insert(payload)); }
+  $("saveJobCodeBtn").disabled=false;
+  if(error){ showMsg(msg, /duplicate|unique/i.test(error.message)?"その工事コードは既に登録されています。":"保存に失敗しました："+error.message,"err"); return; }
+  showMsg(msg, id?"工事コードを更新しました。":"工事コードを登録しました。","ok");
+  $("jobCodeForm").classList.add("hidden");
+  await loadJobMaster(); await loadJobCodes();
+});
+$("delJobCodeBtn").addEventListener("click", async ()=>{
+  const msg=$("mstMsg"), id=$("jc-id").value, code=$("jc-code").value.trim();
+  if(!id) return;
+  if(!confirm(`工事コード「${code}」を削除します。よろしいですか？`)) return;
+  const { error } = await db.from("job_codes").delete().eq("id",id);
+  if(error){ showMsg(msg,"削除に失敗しました："+error.message,"err"); return; }
+  showMsg(msg,"工事コードを削除しました。","ok");
+  $("jobCodeForm").classList.add("hidden");
+  await loadJobMaster(); await loadJobCodes();
+});
 
 /* 履歴 */
 function monthRange(ym){ const [y,m]=ym.split("-").map(Number); const last=new Date(y,m,0).getDate();
