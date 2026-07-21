@@ -345,6 +345,11 @@
               <input id="f-note" type="text" placeholder="任意" />
             </div>
           </div>
+          <div style="margin-top:2px;">
+            <label>シリアルNo（任意・複数可）</label>
+            <textarea id="f-serials" rows="2" placeholder="出入庫するシリアルNo。1行に1つ／複数可（任意）"></textarea>
+            <button type="button" id="f-serial-pick" class="ser-btn hidden" style="margin-top:6px;"><i class="ti ti-barcode"></i> 登録シリアルから選ぶ（<span id="f-serial-cnt">0</span>件）</button>
+          </div>
           <div id="f-file-wrap" style="margin-top:8px;">
             <label id="f-file-label">写真・証明書を添付（任意）</label>
             <input id="f-file" type="file" accept="image/*,application/pdf" style="padding:9px;" />
