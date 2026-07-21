@@ -332,9 +332,6 @@
                 <input id="f-job" type="text" autocomplete="off" placeholder="工番・発注者・所在地で検索" />
                 <div id="f-job-dd" class="jobdd hidden"></div>
               </div>
-              <label>シリアルNo（任意・複数可）</label>
-              <textarea id="f-serials" rows="2" placeholder="出入庫するシリアルNo。1行に1つ／複数可（任意）"></textarea>
-              <button type="button" id="f-serial-pick" class="ser-btn hidden" style="margin-top:6px;"><i class="ti ti-barcode"></i> 登録シリアルから選ぶ（<span id="f-serial-cnt">0</span>件）</button>
             </div>
             <div>
               <label id="f-cp-label">持ち出し先（現場名）</label>
@@ -344,6 +341,11 @@
               <label>備考</label>
               <input id="f-note" type="text" placeholder="任意" />
             </div>
+          </div>
+          <div style="margin-top:2px;">
+            <label>シリアルNo（任意・複数可）</label>
+            <textarea id="f-serials" rows="2" placeholder="出入庫するシリアルNo。1行に1つ／複数可（任意）"></textarea>
+            <button type="button" id="f-serial-pick" class="ser-btn hidden" style="margin-top:6px;"><i class="ti ti-barcode"></i> 登録シリアルから選ぶ（<span id="f-serial-cnt">0</span>件）</button>
           </div>
           <div id="f-file-wrap" style="margin-top:8px;">
             <label id="f-file-label">写真・証明書を添付（任意）</label>
