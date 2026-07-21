@@ -332,6 +332,9 @@
                 <input id="f-job" type="text" autocomplete="off" placeholder="工番・発注者・所在地で検索" />
                 <div id="f-job-dd" class="jobdd hidden"></div>
               </div>
+              <label>シリアルNo（任意・複数可）</label>
+              <textarea id="f-serials" rows="2" placeholder="出入庫するシリアルNo。1行に1つ／複数可（任意）"></textarea>
+              <button type="button" id="f-serial-pick" class="ser-btn hidden" style="margin-top:6px;"><i class="ti ti-barcode"></i> 登録シリアルから選ぶ（<span id="f-serial-cnt">0</span>件）</button>
             </div>
             <div>
               <label id="f-cp-label">持ち出し先（現場名）</label>
@@ -527,6 +530,7 @@ async function boot(){
     await loadItems();
     await loadJobCodes();
     await loadJobNos();
+    await loadSerials();
     await loadMyRecent();
   }else{
     $("app").classList.add("hidden"); $("login").classList.remove("hidden");
@@ -562,6 +566,7 @@ function applyTypeUI(){
   else { cl="引取先・処分理由"; cp="例: ○○産廃 / 現場で廃棄"; }
   $("f-cp-label").textContent=cl; $("f-cp").placeholder=cp;
   $("f-file-label").textContent = (txType==="処分") ? "処分証明書を添付（写真・PDF／推奨）" : "写真・証明書を添付（任意）";
+  updateSerialPick();
 }
 document.querySelectorAll("#seg button").forEach(b=>b.addEventListener("click", ()=>{
   txType=b.dataset.v;
@@ -580,6 +585,7 @@ function updateItemFreeUI(){
 }
 $("f-item").addEventListener("change", ()=>{
   updateItemFreeUI();
+  updateSerialPick();
   if($("f-item").value==="__new__") $("f-item-free").focus();
 });
 
@@ -712,7 +718,7 @@ $("submitBtn").addEventListener("click", async () => {
     if(!item_id){ showMsg(msg,"型式・品名を選んでください。","err"); $("submitBtn").disabled=false; return; }
     const upd={ item_id, tx_type:txType, quantity:qty, tx_date:date,
       job_no:$("f-job").value.trim()||null, counterparty:$("f-cp").value.trim()||null,
-      person, note:$("f-note").value.trim()||null };
+      person, note:$("f-note").value.trim()||null, serials:$("f-serials").value.trim()||null };
     if(newAttachment) upd.attachment_path=newAttachment;
     const { error } = await db.from("transactions").update(upd).eq("id", EDIT_ID);
     $("submitBtn").disabled=false;
@@ -768,16 +774,17 @@ $("submitBtn").addEventListener("click", async () => {
   const { error } = await db.from("transactions").insert({
     item_id, tx_type:txType, quantity:qty, tx_date:date,
     job_no:$("f-job").value.trim()||null, counterparty:$("f-cp").value.trim()||null,
-    person, note:$("f-note").value.trim()||null, attachment_path:newAttachment
+    person, note:$("f-note").value.trim()||null, attachment_path:newAttachment,
+    serials:$("f-serials").value.trim()||null
   });
   $("submitBtn").disabled=false;
   if(error){ showMsg(msg,"記録に失敗しました："+error.message,"err"); return; }
   localStorage.setItem("person_name", person);
   showMsg(msg,`✓ 記録しました：${txType} ${itemName} ${qty}`,"ok");
-  await loadItems(); await loadJobNos(); await loadMyRecent();
+  await loadItems(); await loadJobNos(); await loadSerials(); await loadMyRecent();
   $("f-item").value=""; $("f-item-free").value=""; $("f-unit-new").value="";
-  $("f-qty").value=""; $("f-job").value=""; $("f-cp").value=""; $("f-note").value=""; $("f-file").value="";
-  updateItemFreeUI();
+  $("f-qty").value=""; $("f-job").value=""; $("f-cp").value=""; $("f-note").value=""; $("f-file").value=""; $("f-serials").value="";
+  updateItemFreeUI(); updateSerialPick();
   window.scrollTo({top:0, behavior:"smooth"});
 });
 
@@ -788,7 +795,7 @@ function cancelEdit(){
   $("submitBtn").innerHTML='<i class="ti ti-check"></i> この内容で記録する';
   $("cancelEditBtn").classList.add("hidden");
   $("f-item").value=""; $("f-item-free").value=""; $("f-unit-new").value="";
-  $("f-qty").value=""; $("f-job").value=""; $("f-cp").value=""; $("f-note").value=""; $("f-file").value="";
+  $("f-qty").value=""; $("f-job").value=""; $("f-cp").value=""; $("f-note").value=""; $("f-file").value=""; $("f-serials").value="";
   $("recMsg").className="msg";
   applyTypeUI();
 }
@@ -796,7 +803,7 @@ async function loadMyRecent(){
   const box=$("myRecent"); if(!CURRENT_USER) return;
   const start=new Date(); start.setHours(0,0,0,0);
   const { data, error } = await db.from("transactions")
-    .select("id,tx_date,tx_type,quantity,job_no,counterparty,person,note,item_id,created_at,attachment_path,items(name,unit)")
+    .select("id,tx_date,tx_type,quantity,job_no,counterparty,person,note,serials,item_id,created_at,attachment_path,items(name,unit)")
     .eq("created_by", CURRENT_USER.id).gte("created_at", start.toISOString()).order("created_at",{ascending:false});
   if(error){ box.innerHTML=`<div class="msg err">読み込み失敗：${esc(error.message)}</div>`; return; }
   const rows=(data||[]).filter(r=>r.tx_type!=="棚卸調整");
@@ -806,7 +813,7 @@ async function loadMyRecent(){
     const t=new Date(r.created_at), hm=`${String(t.getHours()).padStart(2,"0")}:${String(t.getMinutes()).padStart(2,"0")}`;
     return `<div class="hist">
       <div class="h-top"><span class="h-item">${esc(nm)}</span><span class="badge t-${r.tx_type}">${r.tx_type} ${r.quantity}${esc(unit)}</span></div>
-      <div class="h-detail">${hm}${r.counterparty?`　${esc(r.counterparty)}`:""}${r.job_no?`　工番:${esc(r.job_no)}`:""}${r.note?`<br>${esc(r.note)}`:""}${r.attachment_path?"　📎添付あり":""}</div>
+      <div class="h-detail">${hm}${r.counterparty?`　${esc(r.counterparty)}`:""}${r.job_no?`　工番:${esc(r.job_no)}`:""}${r.serials?`<br>S/N: ${esc(r.serials.replace(/\s*\n\s*/g,' , '))}`:""}${r.note?`<br>${esc(r.note)}`:""}${r.attachment_path?"　📎添付あり":""}</div>
       <div style="margin-top:8px; display:flex; gap:8px;">
         <button class="btn sub" style="margin:0; width:auto; padding:7px 16px;" data-edit="${r.id}"><i class="ti ti-edit"></i> 編集</button>
         <button class="btn danger" data-del="${r.id}"><i class="ti ti-trash"></i> 取消</button>
@@ -822,7 +829,8 @@ function editRecord(r){
   document.querySelectorAll("#seg button").forEach(x=>x.classList.toggle("on", x.dataset.v===r.tx_type));
   applyTypeUI();
   $("f-item").value=r.item_id; $("f-qty").value=r.quantity; $("f-date").value=r.tx_date;
-  $("f-job").value=r.job_no||""; $("f-cp").value=r.counterparty||""; $("f-person").value=r.person||""; $("f-note").value=r.note||""; $("f-file").value="";
+  $("f-job").value=r.job_no||""; $("f-cp").value=r.counterparty||""; $("f-person").value=r.person||""; $("f-note").value=r.note||""; $("f-file").value=""; $("f-serials").value=r.serials||"";
+  updateSerialPick();
   $("submitBtn").innerHTML='<i class="ti ti-check"></i> 更新する';
   $("cancelEditBtn").classList.remove("hidden");
   const m=$("recMsg"); m.textContent="編集中：内容を直して「更新する」を押してください。"; m.className="msg ok";
@@ -882,8 +890,8 @@ function renderStock(rows){
   }).join("")+'</div>';
   box.querySelectorAll(".ser-btn").forEach(b=>b.addEventListener("click", ()=>openSerials(b.dataset.name)));
 }
-/* シリアル一覧モーダル */
-function openSerials(name){
+/* シリアル一覧モーダル（onPick を渡すと選択モード：タップで追加） */
+function openSerials(name, onPick){
   const rows=SERIALS_BY_NAME[name]||[];
   let ov=$("serialModal");
   if(!ov){ ov=document.createElement("div"); ov.id="serialModal"; ov.className="ser-ov"; document.body.appendChild(ov); }
@@ -892,16 +900,37 @@ function openSerials(name){
     const f=nq?rows.filter(r=>normName(r.serial).includes(nq)||(r.note&&normName(r.note).includes(nq))):rows;
     ov.querySelector(".ser-cnt").textContent=`${f.length}件`;
     ov.querySelector(".ser-list").innerHTML = f.length ? f.map((r,i)=>
-      `<div class="ser-item"><span class="sn">${i+1}</span><span class="sv">${esc(r.serial)}</span>${r.note?`<span class="st">${esc(r.note)}</span>`:''}</div>`).join("")
+      `<div class="ser-item${onPick?' pick':''}" data-serial="${esc(r.serial)}"><span class="sn">${i+1}</span><span class="sv">${esc(r.serial)}</span>${r.note?`<span class="st">${esc(r.note)}</span>`:''}</div>`).join("")
       : '<div class="jempty">該当なし</div>';
+    if(onPick){ ov.querySelectorAll(".ser-item.pick").forEach(el=>el.addEventListener("click",()=>{ onPick(el.dataset.serial); el.classList.add("picked"); })); }
   };
+  const hint=onPick?'<div class="muted" style="font-size:12px;margin:-4px 0 8px;">タップで下の入力欄に追加されます</div>':'';
   ov.innerHTML=`<div class="ser-box"><div class="ser-head"><div class="ser-ttl">${esc(name)}<span class="ser-cnt muted"></span></div><button type="button" class="ser-x">✕</button></div>
-    <input class="ser-q" type="search" placeholder="シリアル・備考で絞り込み"><div class="ser-list"></div></div>`;
+    ${hint}<input class="ser-q" type="search" placeholder="シリアル・備考で絞り込み"><div class="ser-list"></div></div>`;
   ov.querySelector(".ser-x").addEventListener("click",()=>ov.remove());
   ov.addEventListener("click",e=>{ if(e.target===ov) ov.remove(); });
   ov.querySelector(".ser-q").addEventListener("input",e=>draw(e.target.value));
   draw();
 }
+/* 記録フォームで選択中の型式名（新規入力時は null） */
+function currentItemName(){
+  const v=$("f-item").value;
+  if(v && v!=="__new__") return (ITEMS_CACHE.find(i=>i.id===v)||{}).name||null;
+  return null;
+}
+/* 選択中の型式に登録シリアルがあれば「選ぶ」ボタンを出す */
+function updateSerialPick(){
+  const name=currentItemName(), list=name?(SERIALS_BY_NAME[name]||[]):[], btn=$("f-serial-pick");
+  if(list.length){ $("f-serial-cnt").textContent=list.length; btn.classList.remove("hidden"); }
+  else btn.classList.add("hidden");
+}
+function appendSerial(s){
+  const ta=$("f-serials"), cur=ta.value.trim();
+  const set=new Set(cur.split(/[\s,、]+/).filter(Boolean));
+  if(set.has(s)) return;
+  ta.value = cur ? cur+"\n"+s : s;
+}
+$("f-serial-pick").addEventListener("click", ()=>{ const n=currentItemName(); if(n) openSerials(n, appendSerial); });
 $("stockSearch").addEventListener("input", ()=>{ if(window._stock) renderStock(window._stock); });
 
 /* 現在庫一覧のPDF出力（全件のスナップショット） */
@@ -989,7 +1018,7 @@ function renderHistory(){
   $("adm-summary").textContent=`${y}年${Number(m)}月${tlabel}：${HISTORY_CACHE.length}件`;
   if(!HISTORY_CACHE.length){ box.innerHTML='<p class="muted center">該当する記録はありません。</p>'; return; }
   box.innerHTML='<div class="tbl-wrap"><table class="tbl"><thead><tr>'+
-    '<th>日付</th><th>区分</th><th>型式・品名</th><th class="num">数量</th><th>工番</th><th>持出先/入庫元</th><th>担当者</th><th>ログイン</th><th>備考</th><th>証明書</th>'+
+    '<th>日付</th><th>区分</th><th>型式・品名</th><th class="num">数量</th><th>工番</th><th>シリアルNo</th><th>持出先/入庫元</th><th>担当者</th><th>ログイン</th><th>備考</th><th>証明書</th>'+
     '</tr></thead><tbody>'+
     HISTORY_CACHE.map(r=>`<tr>
       <td>${r.tx_date}</td>
@@ -997,6 +1026,7 @@ function renderHistory(){
       <td class="wrap">${esc(r.item_name)}</td>
       <td class="num">${r.quantity}${esc(r.unit||"")}</td>
       <td>${esc(r.job_no||"")}</td>
+      <td class="wrap">${esc((r.serials||"").replace(/\s*\n\s*/g,' , '))}</td>
       <td class="wrap">${esc(r.counterparty||"")}</td>
       <td>${esc(r.person||"")}</td>
       <td>${esc(r.login_email||"")}</td>
@@ -1013,8 +1043,8 @@ function renderHistory(){
 /* 入出庫履歴CSV出力 */
 $("adm-csv").addEventListener("click", ()=>{
   if(!HISTORY_CACHE.length){ showMsg($("admMsg"),"先に対象月を表示してください。","err"); return; }
-  const data=[["日付","区分","型式・品名","数量","単位","工番","持出先/入庫元","担当者","ログイン","備考","証明書"]];
-  HISTORY_CACHE.forEach(r=>data.push([r.tx_date,r.tx_type,r.item_name,r.quantity,r.unit||"",r.job_no||"",r.counterparty||"",r.person||"",r.login_email||"",r.note||"",r.attachment_path?"あり":""]));
+  const data=[["日付","区分","型式・品名","数量","単位","工番","シリアルNo","持出先/入庫元","担当者","ログイン","備考","証明書"]];
+  HISTORY_CACHE.forEach(r=>data.push([r.tx_date,r.tx_type,r.item_name,r.quantity,r.unit||"",r.job_no||"",(r.serials||"").replace(/\s*\n\s*/g," , "),r.counterparty||"",r.person||"",r.login_email||"",r.note||"",r.attachment_path?"あり":""]));
   downloadCSV(`入出庫台帳_${HISTORY_MONTH}${$("adm-type").value?("_"+$("adm-type").value):""}.csv`, data);
 });
 
@@ -1025,10 +1055,10 @@ $("adm-pdf").addEventListener("click", () => {
   const stamp=`${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()} ${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
   const tsel=$("adm-type").value, tlabel=tsel?$("adm-type").selectedOptions[0].textContent:"";
   const title = tsel==="処分" ? "廃棄（処分）一覧" : "入出庫台帳";
-  const rows=HISTORY_CACHE.map(r=>`<tr><td>${r.tx_date}</td><td>${r.tx_type}</td><td>${esc(r.item_name)}</td><td class="num">${r.quantity}</td><td>${esc(r.unit||"")}</td><td>${esc(r.job_no||"")}</td><td>${esc(r.counterparty||"")}</td><td>${esc(r.person||"")}</td><td>${esc(r.login_email||"")}</td><td>${esc(r.note||"")}</td><td>${r.attachment_path?"あり":""}</td></tr>`).join("");
+  const rows=HISTORY_CACHE.map(r=>`<tr><td>${r.tx_date}</td><td>${r.tx_type}</td><td>${esc(r.item_name)}</td><td class="num">${r.quantity}</td><td>${esc(r.unit||"")}</td><td>${esc(r.job_no||"")}</td><td>${esc((r.serials||"").replace(/\s*\n\s*/g," , "))}</td><td>${esc(r.counterparty||"")}</td><td>${esc(r.person||"")}</td><td>${esc(r.login_email||"")}</td><td>${esc(r.note||"")}</td><td>${r.attachment_path?"あり":""}</td></tr>`).join("");
   $("printArea").innerHTML=`<h1>工事部 資材在庫管理　${title}</h1>
     <div class="p-meta">対象月：${y}年${Number(m)}月${(tsel&&tsel!=="処分")?"　／　区分："+tlabel:""}　／　出力日時：${stamp}　／　件数：${HISTORY_CACHE.length}件</div>
-    <table><thead><tr><th>日付</th><th>区分</th><th>型式・品名</th><th>数量</th><th>単位</th><th>工番</th><th>持出先/入庫元</th><th>担当者</th><th>ログイン</th><th>備考</th><th>証明書</th></tr></thead>
+    <table><thead><tr><th>日付</th><th>区分</th><th>型式・品名</th><th>数量</th><th>単位</th><th>工番</th><th>シリアルNo</th><th>持出先/入庫元</th><th>担当者</th><th>ログイン</th><th>備考</th><th>証明書</th></tr></thead>
     <tbody>${rows}</tbody></table>`;
   window.print();
 });
