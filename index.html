@@ -249,6 +249,8 @@
     #printArea h1{font-size:16px; margin:0 0 4px;}
     #printArea .p-meta{font-size:11px; color:#333; margin-bottom:10px;}
     #printArea .num{text-align:right;}
+    #printArea td.ser{font-size:9px; word-break:break-all; line-height:1.35;}
+    body.print-landscape #printArea th,body.print-landscape #printArea td{font-size:10px;}
     @page{size:A4 landscape; margin:12mm;}
   }
 </style>
@@ -945,18 +947,23 @@ $("stock-pdf").addEventListener("click", () => {
   const now=new Date();
   const stamp=`${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()} ${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
   let low=0;
+  const serText=(name)=>(SERIALS_BY_NAME[name]||[]).map(x=>x.serial+(x.note?`(${x.note})`:"")).join("、");
   const body=rows.map((r,idx)=>{
     const cur=Number(r.current_stock);
     const warn=(r.reorder_point!=null && cur<=Number(r.reorder_point));
     const status = warn?"要発注":(cur<=0?"在庫なし":"");
     if(warn||cur<=0) low++;
-    return `<tr><td class="num">${idx+1}</td><td>${esc(r.name)}</td><td>${esc(r.location||"")}</td><td class="num">${cur}</td><td>${esc(r.unit||"")}</td><td class="num">${r.reorder_point??""}</td><td>${status}</td><td>${esc(r.note||"")}</td></tr>`;
+    return `<tr><td class="num">${idx+1}</td><td>${esc(r.name)}</td><td>${esc(r.location||"")}</td><td class="num">${cur}</td><td>${esc(r.unit||"")}</td><td class="num">${r.reorder_point??""}</td><td>${status}</td><td class="ser">${esc(serText(r.name))}</td><td>${esc(r.note||"")}</td></tr>`;
   }).join("");
   $("printArea").innerHTML=`<h1>工事部 資材在庫管理　現在庫一覧</h1>
     <div class="p-meta">出力日時：${stamp}　／　型式数：${rows.length}　／　要発注・在庫なし：${low}件</div>
-    <table><thead><tr><th>No.</th><th>型式・品名</th><th>保管場所</th><th>現在庫数</th><th>単位</th><th>発注点</th><th>状態</th><th>備考</th></tr></thead>
+    <table><thead><tr><th>No.</th><th>型式・品名</th><th>保管場所</th><th>現在庫数</th><th>単位</th><th>発注点</th><th>状態</th><th>シリアルNo</th><th>備考</th></tr></thead>
     <tbody>${body}</tbody></table>`;
+  // シリアル列が広いので在庫PDFは横向きで印刷（履歴PDFには影響させない）
+  const ps=document.createElement("style"); ps.id="stockPageStyle"; ps.media="print"; ps.textContent="@page{size:A4 landscape; margin:10mm;}";
+  document.head.appendChild(ps); document.body.classList.add("print-landscape");
   window.print();
+  ps.remove(); document.body.classList.remove("print-landscape");
 });
 
 /* 型式マスタ */
