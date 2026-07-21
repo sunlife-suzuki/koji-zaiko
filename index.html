@@ -212,6 +212,15 @@
   .stk-diff{min-width:50px; text-align:right; font-weight:700;}
   .diff-pos{color:var(--green);}
   .diff-neg{color:var(--red);}
+  .stk-real{margin-left:auto; color:var(--muted);}
+  .stk-real b{font-size:15px;}
+  .stk-sertools{margin-top:8px; display:flex; align-items:center; flex-wrap:wrap; gap:6px;}
+  .stk-serlist{margin-top:6px; display:grid; grid-template-columns:1fr; gap:2px;}
+  @media (min-width:600px){ .stk-serlist{grid-template-columns:1fr 1fr; gap:2px 16px;} }
+  .serchk{display:flex; align-items:center; gap:9px; padding:7px 4px; border-bottom:1px solid var(--line-soft); font-size:13px;}
+  .serchk input{width:auto; height:auto; margin:0; flex:none; transform:scale(1.25);}
+  .serchk .sv{font-weight:600; word-break:break-all;}
+  .serchk .st{color:var(--red); font-size:11px; margin-left:auto; white-space:nowrap;}
 
   .msg{padding:12px 14px; border-radius:10px; font-size:14px; margin-bottom:14px; display:none;}
   .msg.ok{background:rgba(29,158,117,.14); color:var(--green); display:block;}
@@ -1206,18 +1215,37 @@ async function removeAdmin(email, isSelf){
 async function loadStocktake(){
   if(!$("stk-date").value) $("stk-date").value = todayStr();
   const box=$("stk-list"); box.innerHTML='<div class="spinner">読み込み中…</div>';
+  await loadSerials();
   const { data, error } = await db.rpc("list_stock");
   if(error){ box.innerHTML=`<div class="msg err">読み込み失敗：${esc(error.message)}</div>`; return; }
   const rows=data||[];
   if(!rows.length){ box.innerHTML='<p class="muted center">型式がありません。「型式マスタ」から登録してください。</p>'; $("stk-summary").textContent=""; return; }
-  box.innerHTML = rows.map(r=>`<div class="stk-row">
-      <div class="stk-name">${esc(r.name)}${r.unit?` <span class="muted">（${esc(r.unit)}）</span>`:""}</div>
-      <div class="stk-line">
-        <span>システム</span><b>${Number(r.current_stock)}</b>
-        <input type="number" inputmode="decimal" step="any" class="stk-cnt" placeholder="実数" data-id="${r.id}" data-sys="${Number(r.current_stock)}" />
-        <span class="stk-diff">—</span>
-      </div>
-    </div>`).join("");
+  box.innerHTML = rows.map(r=>{
+    const sys=Number(r.current_stock);
+    const nameHtml=`<div class="stk-name">${esc(r.name)}${r.unit?` <span class="muted">（${esc(r.unit)}）</span>`:""}</div>`;
+    const sers=SERIALS_BY_NAME[r.name]||[];
+    if(sers.length){
+      const chks=sers.map(s=>`<label class="serchk"><input type="checkbox" data-serial="${esc(s.serial)}"><span class="sv">${esc(s.serial)}</span>${s.note?`<span class="st">${esc(s.note)}</span>`:""}</label>`).join("");
+      return `<div class="stk-row stk-ser" data-id="${r.id}" data-sys="${sys}" data-touched="0">
+        ${nameHtml}
+        <div class="stk-line"><span>システム</span><b>${sys}</b>
+          <span class="stk-real">実数 <b class="stk-realnum">0</b></span>
+          <span class="stk-diff diff-neg">${sys>0?("-"+sys):"0"}</span></div>
+        <div class="stk-sertools">
+          <button type="button" class="btn sub chkall" style="width:auto;margin:0;padding:6px 12px;font-size:12px;">全部チェック</button>
+          <button type="button" class="btn sub chknone" style="width:auto;margin:0;padding:6px 12px;font-size:12px;">全部外す</button>
+          <span class="muted stk-chkcnt" style="font-size:12px;">0 / ${sers.length} 枚</span>
+        </div>
+        <div class="stk-serlist">${chks}</div>
+      </div>`;
+    }
+    return `<div class="stk-row">
+      ${nameHtml}
+      <div class="stk-line"><span>システム</span><b>${sys}</b>
+        <input type="number" inputmode="decimal" step="any" class="stk-cnt" placeholder="実数" data-id="${r.id}" data-sys="${sys}" />
+        <span class="stk-diff">—</span></div>
+    </div>`;
+  }).join("");
   box.querySelectorAll(".stk-cnt").forEach(inp=>inp.addEventListener("input", ()=>{
     const sys=Number(inp.dataset.sys), v=inp.value.trim();
     const cell=inp.closest(".stk-row").querySelector(".stk-diff");
@@ -1225,6 +1253,20 @@ async function loadStocktake(){
     else{ const d=Number(v)-sys; cell.textContent=(d>0?"+":"")+d; cell.className="stk-diff "+(d>0?"diff-pos":(d<0?"diff-neg":"")); }
     updateStkSummary();
   }));
+  box.querySelectorAll(".stk-ser").forEach(row=>{
+    const recalc=()=>{
+      const boxes=[...row.querySelectorAll(".serchk input")];
+      const checked=boxes.filter(b=>b.checked).length, sys=Number(row.dataset.sys);
+      row.querySelector(".stk-realnum").textContent=checked;
+      row.querySelector(".stk-chkcnt").textContent=`${checked} / ${boxes.length} 枚`;
+      const d=checked-sys, cell=row.querySelector(".stk-diff");
+      cell.textContent=(d>0?"+":"")+d; cell.className="stk-diff "+(d>0?"diff-pos":(d<0?"diff-neg":""));
+      updateStkSummary();
+    };
+    row.querySelectorAll(".serchk input").forEach(cb=>cb.addEventListener("change",()=>{ row.dataset.touched="1"; recalc(); }));
+    row.querySelector(".chkall").addEventListener("click",()=>{ row.querySelectorAll(".serchk input").forEach(cb=>cb.checked=true); row.dataset.touched="1"; recalc(); });
+    row.querySelector(".chknone").addEventListener("click",()=>{ row.querySelectorAll(".serchk input").forEach(cb=>cb.checked=false); row.dataset.touched="1"; recalc(); });
+  });
   updateStkSummary();
 }
 function updateStkSummary(){
@@ -1232,7 +1274,12 @@ function updateStkSummary(){
   document.querySelectorAll("#stk-list .stk-cnt").forEach(inp=>{
     if(inp.value.trim()!==""){ counted++; if(Number(inp.value)-Number(inp.dataset.sys)!==0) diffs++; }
   });
-  $("stk-summary").textContent=`実数入力：${counted}件　／　差異あり：${diffs}件`;
+  document.querySelectorAll("#stk-list .stk-ser").forEach(row=>{
+    if(row.dataset.touched==="1"){ counted++;
+      const checked=[...row.querySelectorAll(".serchk input")].filter(b=>b.checked).length;
+      if(checked-Number(row.dataset.sys)!==0) diffs++; }
+  });
+  $("stk-summary").textContent=`確認済み：${counted}件　／　差異あり：${diffs}件`;
 }
 $("stk-confirm").addEventListener("click", async ()=>{
   const msg=$("stkMsg"), date=$("stk-date").value||todayStr();
@@ -1243,7 +1290,18 @@ $("stk-confirm").addEventListener("click", async ()=>{
     const d=Number(inp.value)-Number(inp.dataset.sys);
     if(d!==0) rows.push({ item_id:inp.dataset.id, tx_type:"棚卸調整", quantity:d, tx_date:date, person, note:"棚卸し" });
   });
-  if(!rows.length){ showMsg(msg,"差異のある実数入力がありません。","err"); return; }
+  document.querySelectorAll("#stk-list .stk-ser").forEach(row=>{
+    if(row.dataset.touched!=="1") return;
+    const boxes=[...row.querySelectorAll(".serchk input")];
+    const checked=boxes.filter(b=>b.checked).length, sys=Number(row.dataset.sys);
+    const d=checked-sys;
+    if(d!==0){
+      const missing=boxes.filter(b=>!b.checked).map(b=>b.dataset.serial);
+      const note = missing.length ? `棚卸し（実数${checked}）不足シリアル: ${missing.join("、")}` : `棚卸し（実数${checked}）`;
+      rows.push({ item_id:row.dataset.id, tx_type:"棚卸調整", quantity:d, tx_date:date, person, note });
+    }
+  });
+  if(!rows.length){ showMsg(msg,"差異のある確認がありません。","err"); return; }
   if(!confirm(`${rows.length}件の差異を在庫に反映します。よろしいですか？`)) return;
   $("stk-confirm").disabled=true;
   const { error } = await db.from("transactions").insert(rows);
