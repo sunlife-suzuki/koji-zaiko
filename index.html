@@ -206,7 +206,7 @@
   @media (prefers-color-scheme: dark){ .cert{color:var(--amber);} }
   .stk-row{padding:11px 2px; border-bottom:1px solid var(--line-soft);}
   .stk-name{font-weight:600; font-size:14px; margin-bottom:8px;}
-  .stk-line{display:flex; align-items:center; gap:9px; font-size:13px; color:var(--muted);}
+  .stk-line{display:flex; align-items:center; flex-wrap:wrap; gap:9px; font-size:13px; color:var(--muted);}
   .stk-line b{font-size:17px; color:var(--text); font-weight:700;}
   .stk-cnt{width:96px; padding:9px; text-align:right; margin-left:auto;}
   .stk-diff{min-width:50px; text-align:right; font-weight:700;}
@@ -214,6 +214,9 @@
   .diff-neg{color:var(--red);}
   .stk-real{margin-left:auto; color:var(--muted);}
   .stk-real b{font-size:15px;}
+  .stk-toggle{background:var(--btn-soft); color:var(--text); border:1px solid var(--input-border); border-radius:8px; padding:5px 10px; font-size:12px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px;}
+  .stk-toggle .ti{transition:transform .15s;}
+  .stk-toggle.open .ti{transform:rotate(180deg);}
   .stk-sertools{margin-top:8px; display:flex; align-items:center; flex-wrap:wrap; gap:6px;}
   .stk-serlist{margin-top:6px; display:grid; grid-template-columns:1fr; gap:2px;}
   @media (min-width:600px){ .stk-serlist{grid-template-columns:1fr 1fr; gap:2px 16px;} }
@@ -1230,13 +1233,16 @@ async function loadStocktake(){
         ${nameHtml}
         <div class="stk-line"><span>システム</span><b>${sys}</b>
           <span class="stk-real">実数 <b class="stk-realnum">0</b></span>
-          <span class="stk-diff diff-neg">${sys>0?("-"+sys):"0"}</span></div>
-        <div class="stk-sertools">
-          <button type="button" class="btn sub chkall" style="width:auto;margin:0;padding:6px 12px;font-size:12px;">全部チェック</button>
-          <button type="button" class="btn sub chknone" style="width:auto;margin:0;padding:6px 12px;font-size:12px;">全部外す</button>
-          <span class="muted stk-chkcnt" style="font-size:12px;">0 / ${sers.length} 枚</span>
+          <span class="stk-diff diff-neg">${sys>0?("-"+sys):"0"}</span>
+          <button type="button" class="stk-toggle" aria-expanded="false"><i class="ti ti-chevron-down"></i> シリアル</button></div>
+        <div class="stk-sercollapse hidden">
+          <div class="stk-sertools">
+            <button type="button" class="btn sub chkall" style="width:auto;margin:0;padding:6px 12px;font-size:12px;">全部チェック</button>
+            <button type="button" class="btn sub chknone" style="width:auto;margin:0;padding:6px 12px;font-size:12px;">全部外す</button>
+            <span class="muted stk-chkcnt" style="font-size:12px;">0 / ${sers.length} 枚</span>
+          </div>
+          <div class="stk-serlist">${chks}</div>
         </div>
-        <div class="stk-serlist">${chks}</div>
       </div>`;
     }
     return `<div class="stk-row">
@@ -1266,6 +1272,8 @@ async function loadStocktake(){
     row.querySelectorAll(".serchk input").forEach(cb=>cb.addEventListener("change",()=>{ row.dataset.touched="1"; recalc(); }));
     row.querySelector(".chkall").addEventListener("click",()=>{ row.querySelectorAll(".serchk input").forEach(cb=>cb.checked=true); row.dataset.touched="1"; recalc(); });
     row.querySelector(".chknone").addEventListener("click",()=>{ row.querySelectorAll(".serchk input").forEach(cb=>cb.checked=false); row.dataset.touched="1"; recalc(); });
+    const tgl=row.querySelector(".stk-toggle"), coll=row.querySelector(".stk-sercollapse");
+    tgl.addEventListener("click",()=>{ const open=coll.classList.toggle("hidden")===false; tgl.setAttribute("aria-expanded",open?"true":"false"); tgl.classList.toggle("open",open); });
   });
   updateStkSummary();
 }
