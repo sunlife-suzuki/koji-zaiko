@@ -142,6 +142,24 @@
   .jobdd .jc{font-weight:700; font-size:14px;}
   .jobdd .jm{font-size:12px; color:var(--muted); margin-top:2px; line-height:1.4;}
   .jobdd .jempty{padding:12px; color:var(--muted); font-size:13px; text-align:center;}
+  /* シリアル：在庫行のボタン＋モーダル */
+  .ser-btn{display:inline-flex; align-items:center; gap:5px; margin-top:7px; background:var(--btn-soft); color:var(--text);
+    border:1px solid var(--input-border); border-radius:8px; padding:5px 10px; font-size:12px; font-weight:700; cursor:pointer;}
+  .ser-ov{position:fixed; inset:0; z-index:200; background:rgba(0,0,0,.45); display:flex; align-items:flex-end; justify-content:center;
+    padding:0; -webkit-overflow-scrolling:touch;}
+  .ser-box{background:var(--card); width:100%; max-width:560px; max-height:82vh; display:flex; flex-direction:column;
+    border-radius:16px 16px 0 0; padding:16px 16px calc(env(safe-area-inset-bottom) + 16px); box-shadow:var(--shadow);}
+  @media (min-width:600px){ .ser-ov{align-items:center;} .ser-box{border-radius:16px;} }
+  .ser-head{display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:10px;}
+  .ser-ttl{font-weight:700; font-size:15px; line-height:1.4;}
+  .ser-cnt{font-weight:600; font-size:12px; margin-left:8px;}
+  .ser-x{background:none; border:none; font-size:20px; color:var(--muted); cursor:pointer; line-height:1; padding:2px 6px;}
+  .ser-q{margin:0 0 10px;}
+  .ser-list{overflow-y:auto; -webkit-overflow-scrolling:touch;}
+  .ser-item{display:flex; align-items:baseline; gap:8px; padding:9px 4px; border-bottom:1px solid var(--line-soft); font-size:14px;}
+  .ser-item .sn{color:var(--muted); font-size:12px; min-width:24px; text-align:right;}
+  .ser-item .sv{font-weight:700; word-break:break-all; flex:1;}
+  .ser-item .st{color:var(--red); font-size:12px; white-space:nowrap;}
   input:focus,select:focus,textarea:focus{outline:none; border-color:var(--amber); box-shadow:0 0 0 3px rgba(239,159,39,.22);}
   .btn{display:block; width:100%; border:none; border-radius:12px; padding:15px; font-size:16px; font-weight:700; background:var(--amber); color:var(--amber-ink); margin-top:20px; cursor:pointer;}
   .btn:active{transform:scale(.99);}
@@ -343,7 +361,7 @@
         <h1 class="page-title">在庫一覧</h1>
         <div class="card">
           <h2>現在庫数</h2>
-          <input id="stockSearch" type="search" placeholder="型式で絞り込み…" style="margin:4px 0 0;" />
+          <input id="stockSearch" type="search" placeholder="型式・シリアルで絞り込み…" style="margin:4px 0 0;" />
           <div class="btn-row2" style="margin-bottom:12px;">
             <button id="stock-csv" class="btn sub"><i class="ti ti-file-spreadsheet"></i> CSV</button>
             <button id="stock-pdf" class="btn"><i class="ti ti-printer"></i> PDF</button>
@@ -474,6 +492,7 @@ function downloadCSV(filename, rows){
 
 let CURRENT_USER=null, IS_ADMIN=false, EDIT_ID=null, ITEMS_CACHE=[], HISTORY_CACHE=[], HISTORY_MONTH="";
 let JOBCODES_CACHE=[], JOBNOS_CACHE=[];
+let SERIALS_BY_NAME={};
 
 /* 認証 */
 $("loginBtn").addEventListener("click", async () => {
@@ -829,26 +848,59 @@ $("stock-csv").addEventListener("click", ()=>{
 /* 在庫一覧 */
 async function loadStock(){
   const box=$("stockList"); box.innerHTML='<div class="spinner">読み込み中…</div>';
+  await loadSerials();
   const { data, error } = await db.rpc("list_stock");
   if(error){ box.innerHTML=`<div class="msg err">読み込み失敗：${esc(error.message)}</div>`; return; }
   window._stock=data||[]; renderStock(window._stock);
 }
+/* シリアル一覧を品名ごとに読み込み */
+async function loadSerials(){
+  const { data, error } = await db.from("item_serials").select("serial,note,items(name)").order("serial");
+  if(error){ console.error(error); return; }
+  const map={};
+  (data||[]).forEach(r=>{ const nm=r.items?r.items.name:null; if(!nm) return; (map[nm]=map[nm]||[]).push({serial:r.serial, note:r.note}); });
+  SERIALS_BY_NAME=map;
+}
 function renderStock(rows){
   const kw=$("stockSearch").value.trim().toLowerCase(), box=$("stockList");
-  const list=rows.filter(r=>!kw||(r.name||"").toLowerCase().includes(kw));
-  if(!list.length){ box.innerHTML='<p class="muted center">型式がありません。「型式マスタ」から登録してください。</p>'; return; }
+  const matchSerial=(name)=>(SERIALS_BY_NAME[name]||[]).some(x=>x.serial.toLowerCase().includes(kw)||(x.note&&x.note.toLowerCase().includes(kw)));
+  const list=rows.filter(r=>!kw||(r.name||"").toLowerCase().includes(kw)||matchSerial(r.name));
+  if(!list.length){ box.innerHTML='<p class="muted center">該当する型式がありません。</p>'; return; }
   box.innerHTML='<div class="stock-grid">'+list.map(r=>{
     const cur=Number(r.current_stock);
     const warn=(r.reorder_point!=null && cur<=Number(r.reorder_point));
     const low=warn||cur<=0;
     const badge = warn ? '<span class="badge warn">要発注</span>' : (cur<=0 ? '<span class="badge warn">在庫なし</span>' : "");
+    const sn=(SERIALS_BY_NAME[r.name]||[]).length;
+    const serBtn = sn ? `<button type="button" class="ser-btn" data-name="${esc(r.name)}"><i class="ti ti-barcode"></i> シリアル ${sn}件</button>` : "";
     return `<div class="stock-row${low?" low":""}">
       <div><div class="stock-name">${esc(r.name)}</div>
         <div class="stock-meta">${r.location?esc(r.location)+" / ":""}出庫計 ${r.total_out} ・ 入庫返却計 ${r.total_in}</div>
-        ${badge}</div>
+        ${badge}${serBtn}</div>
       <div class="stock-num"><b style="color:${low?'var(--red)':'inherit'}">${cur}</b><span class="u">${esc(r.unit||"")}</span></div>
     </div>`;
   }).join("")+'</div>';
+  box.querySelectorAll(".ser-btn").forEach(b=>b.addEventListener("click", ()=>openSerials(b.dataset.name)));
+}
+/* シリアル一覧モーダル */
+function openSerials(name){
+  const rows=SERIALS_BY_NAME[name]||[];
+  let ov=$("serialModal");
+  if(!ov){ ov=document.createElement("div"); ov.id="serialModal"; ov.className="ser-ov"; document.body.appendChild(ov); }
+  const draw=(q="")=>{
+    const nq=normName(q);
+    const f=nq?rows.filter(r=>normName(r.serial).includes(nq)||(r.note&&normName(r.note).includes(nq))):rows;
+    ov.querySelector(".ser-cnt").textContent=`${f.length}件`;
+    ov.querySelector(".ser-list").innerHTML = f.length ? f.map((r,i)=>
+      `<div class="ser-item"><span class="sn">${i+1}</span><span class="sv">${esc(r.serial)}</span>${r.note?`<span class="st">${esc(r.note)}</span>`:''}</div>`).join("")
+      : '<div class="jempty">該当なし</div>';
+  };
+  ov.innerHTML=`<div class="ser-box"><div class="ser-head"><div class="ser-ttl">${esc(name)}<span class="ser-cnt muted"></span></div><button type="button" class="ser-x">✕</button></div>
+    <input class="ser-q" type="search" placeholder="シリアル・備考で絞り込み"><div class="ser-list"></div></div>`;
+  ov.querySelector(".ser-x").addEventListener("click",()=>ov.remove());
+  ov.addEventListener("click",e=>{ if(e.target===ov) ov.remove(); });
+  ov.querySelector(".ser-q").addEventListener("input",e=>draw(e.target.value));
+  draw();
 }
 $("stockSearch").addEventListener("input", ()=>{ if(window._stock) renderStock(window._stock); });
 
