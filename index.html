@@ -67,7 +67,7 @@
   nav.bottom{
     position:fixed; bottom:0; left:0; right:0; z-index:20;
     background:var(--card); border-top:1px solid var(--line);
-    display:grid; grid-template-columns:repeat(3,1fr);
+    display:grid; grid-template-columns:repeat(4,1fr);
     padding-bottom:env(safe-area-inset-bottom);
   }
   nav.bottom.admin{grid-template-columns:repeat(6,1fr);}
@@ -296,7 +296,7 @@
     <button class="side-link active" data-view="record"><i class="ti ti-pencil-plus"></i> 記録する</button>
     <button class="side-link" data-view="stock"><i class="ti ti-chart-bar"></i> 在庫一覧</button>
     <button class="side-link" data-view="master"><i class="ti ti-package"></i> 資材マスタ</button>
-    <button class="side-link nav-admin hidden" data-view="jobmaster"><i class="ti ti-hash"></i> 工番マスタ</button>
+    <button class="side-link" data-view="jobmaster"><i class="ti ti-hash"></i> 工番マスタ</button>
     <button class="side-link nav-admin hidden" data-view="stocktake"><i class="ti ti-clipboard-check"></i> 棚卸し</button>
     <button class="side-link nav-admin hidden" data-view="admin"><i class="ti ti-history"></i> 履歴・出力</button>
     <div class="side-foot">
@@ -431,9 +431,9 @@
       <section id="view-jobmaster" class="hidden">
         <h1 class="page-title">工番マスタ</h1>
         <div id="jobMstMsg" class="msg"></div>
-        <div class="card nav-admin hidden">
+        <div class="card">
           <h2>工番マスタ（工事コード）</h2>
-          <p class="sub">「記録する」の工番候補に出る工事コードを管理します。新しい案件が増えたらここで追加できます（管理者のみ）。</p>
+          <p class="sub">「記録する」の工番候補に出る工事コードを管理します。新しい案件が増えたらここで追加できます。</p>
           <button id="newJobCodeBtn" class="btn sub"><i class="ti ti-plus"></i> 新しい工事コードを登録</button>
           <div id="jobCodeForm" class="hidden" style="margin-top:14px;">
             <input id="jc-id" type="hidden" />
@@ -452,7 +452,7 @@
             <button id="delJobCodeBtn" class="btn danger hidden"><i class="ti ti-trash"></i> このコードを削除</button>
           </div>
         </div>
-        <div class="card nav-admin hidden">
+        <div class="card">
           <h2>登録済みの工事コード</h2>
           <input id="jobCodeSearch" type="search" placeholder="工事コード・発注者・所在地で絞り込み…" style="margin:4px 0 8px;" />
           <div id="jobCodeList"><div class="spinner">読み込み中…</div></div>
@@ -518,7 +518,7 @@
       <button class="active" data-view="record"><i class="ti ti-pencil-plus"></i>記録</button>
       <button data-view="stock"><i class="ti ti-chart-bar"></i>在庫</button>
       <button data-view="master"><i class="ti ti-package"></i>資材</button>
-      <button class="nav-admin hidden" data-view="jobmaster"><i class="ti ti-hash"></i>工番</button>
+      <button data-view="jobmaster"><i class="ti ti-hash"></i>工番</button>
       <button class="nav-admin hidden" data-view="stocktake"><i class="ti ti-clipboard-check"></i>棚卸し</button>
       <button class="nav-admin hidden" data-view="admin"><i class="ti ti-history"></i>履歴</button>
     </nav>
