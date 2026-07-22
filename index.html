@@ -70,7 +70,8 @@
     display:grid; grid-template-columns:repeat(3,1fr);
     padding-bottom:env(safe-area-inset-bottom);
   }
-  nav.bottom.admin{grid-template-columns:repeat(5,1fr);}
+  nav.bottom.admin{grid-template-columns:repeat(6,1fr);}
+  nav.bottom.admin button{padding:9px 2px 7px; font-size:10.5px;}
   nav.bottom button{background:none; border:none; padding:9px 4px 7px; font-size:11px; color:var(--muted); font-weight:600; border-top:2px solid transparent;}
   nav.bottom button i{display:block; font-size:21px; line-height:1; margin-bottom:2px;}
   nav.bottom button.active{color:var(--amber-strong); border-top-color:var(--amber);}
@@ -294,7 +295,8 @@
     <div class="brand"><i class="ti ti-building-warehouse"></i> <span>工事部 資材在庫管理</span></div>
     <button class="side-link active" data-view="record"><i class="ti ti-pencil-plus"></i> 記録する</button>
     <button class="side-link" data-view="stock"><i class="ti ti-chart-bar"></i> 在庫一覧</button>
-    <button class="side-link" data-view="master"><i class="ti ti-settings"></i> マスタ</button>
+    <button class="side-link" data-view="master"><i class="ti ti-package"></i> 資材マスタ</button>
+    <button class="side-link nav-admin hidden" data-view="jobmaster"><i class="ti ti-hash"></i> 工番マスタ</button>
     <button class="side-link nav-admin hidden" data-view="stocktake"><i class="ti ti-clipboard-check"></i> 棚卸し</button>
     <button class="side-link nav-admin hidden" data-view="admin"><i class="ti ti-history"></i> 履歴・出力</button>
     <div class="side-foot">
@@ -393,9 +395,9 @@
         </div>
       </section>
 
-      <!-- 型式マスタ -->
+      <!-- 資材マスタ -->
       <section id="view-master" class="hidden">
-        <h1 class="page-title">マスタ</h1>
+        <h1 class="page-title">資材マスタ</h1>
         <div id="mstMsg" class="msg"></div>
         <div class="card">
           <h2>型式マスタ管理</h2>
@@ -423,7 +425,12 @@
           <h2>登録済みの型式</h2>
           <div id="masterList"><div class="spinner">読み込み中…</div></div>
         </div>
+      </section>
 
+      <!-- 工番マスタ -->
+      <section id="view-jobmaster" class="hidden">
+        <h1 class="page-title">工番マスタ</h1>
+        <div id="jobMstMsg" class="msg"></div>
         <div class="card nav-admin hidden">
           <h2>工番マスタ（工事コード）</h2>
           <p class="sub">「記録する」の工番候補に出る工事コードを管理します。新しい案件が増えたらここで追加できます（管理者のみ）。</p>
@@ -510,7 +517,8 @@
     <nav class="bottom" id="bottomNav">
       <button class="active" data-view="record"><i class="ti ti-pencil-plus"></i>記録</button>
       <button data-view="stock"><i class="ti ti-chart-bar"></i>在庫</button>
-      <button data-view="master"><i class="ti ti-settings"></i>マスタ</button>
+      <button data-view="master"><i class="ti ti-package"></i>資材</button>
+      <button class="nav-admin hidden" data-view="jobmaster"><i class="ti ti-hash"></i>工番</button>
       <button class="nav-admin hidden" data-view="stocktake"><i class="ti ti-clipboard-check"></i>棚卸し</button>
       <button class="nav-admin hidden" data-view="admin"><i class="ti ti-history"></i>履歴</button>
     </nav>
@@ -588,9 +596,10 @@ db.auth.onAuthStateChange((_e,s)=>{ if(s) boot(); });
 /* タブ切替（サイドバー・下タブ共通） */
 function switchView(v){
   document.querySelectorAll("[data-view]").forEach(x=>x.classList.toggle("active", x.dataset.view===v));
-  ["record","stock","master","stocktake","admin"].forEach(n=>$("view-"+n).classList.toggle("hidden", n!==v));
+  ["record","stock","master","jobmaster","stocktake","admin"].forEach(n=>$("view-"+n).classList.toggle("hidden", n!==v));
   if(v==="stock") loadStock();
-  if(v==="master"){ loadMaster(); loadJobMaster(); }
+  if(v==="master") loadMaster();
+  if(v==="jobmaster") loadJobMaster();
   if(v==="stocktake") loadStocktake();
   if(v==="admin"){ loadHistory(); loadAdmins(); }
   window.scrollTo({top:0});
@@ -1081,7 +1090,7 @@ function renderJobMaster(){
   box.querySelectorAll(".edit").forEach(b=>b.addEventListener("click", ()=>{ openJobCodeForm(JOBCODES_ALL.find(x=>x.id===b.dataset.id)); window.scrollTo({top:0,behavior:"smooth"}); }));
 }
 $("saveJobCodeBtn").addEventListener("click", async ()=>{
-  const msg=$("mstMsg"), id=$("jc-id").value, code=$("jc-code").value.trim();
+  const msg=$("jobMstMsg"), id=$("jc-id").value, code=$("jc-code").value.trim();
   if(!code){ showMsg(msg,"工事コードを入力してください。","err"); return; }
   const payload={ code, department:$("jc-dept").value.trim()||null, orderer:$("jc-orderer").value.trim()||null,
     work_name:$("jc-work").value.trim()||null, place:$("jc-place").value.trim()||null };
@@ -1096,7 +1105,7 @@ $("saveJobCodeBtn").addEventListener("click", async ()=>{
   await loadJobMaster(); await loadJobCodes();
 });
 $("delJobCodeBtn").addEventListener("click", async ()=>{
-  const msg=$("mstMsg"), id=$("jc-id").value, code=$("jc-code").value.trim();
+  const msg=$("jobMstMsg"), id=$("jc-id").value, code=$("jc-code").value.trim();
   if(!id) return;
   if(!confirm(`工事コード「${code}」を削除します。よろしいですか？`)) return;
   const { error } = await db.from("job_codes").delete().eq("id",id);
