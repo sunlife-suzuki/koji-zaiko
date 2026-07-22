@@ -1054,14 +1054,20 @@ $("saveItemBtn").addEventListener("click", async () => {
 });
 async function loadMaster(){
   const box=$("masterList"); box.innerHTML='<div class="spinner">読み込み中…</div>';
+  await loadSerials();
   const { data, error } = await db.from("items").select("*").eq("is_active",true).order("name");
   if(error){ box.innerHTML=`<div class="msg err">読み込み失敗：${esc(error.message)}</div>`; return; }
   if(!data||!data.length){ box.innerHTML='<p class="muted center">まだ登録がありません。</p>'; return; }
-  box.innerHTML=data.map(i=>`<div class="item-admin">
+  box.innerHTML=data.map(i=>{
+    const sn=(SERIALS_BY_NAME[i.name]||[]).length;
+    const serBtn = sn ? `<button type="button" class="ser-btn" data-name="${esc(i.name)}"><i class="ti ti-barcode"></i> シリアル ${sn}件</button>` : "";
+    return `<div class="item-admin">
       <div class="top"><span class="name">${esc(i.name)}</span><button class="edit" data-id="${i.id}">編集</button></div>
       <div class="stock-meta">単位:${esc(i.unit||"-")} / 初期:${i.initial_stock} / 発注点:${i.reorder_point??"-"} / ${esc(i.location||"-")}</div>
-    </div>`).join("");
+      ${serBtn}
+    </div>`;}).join("");
   box.querySelectorAll(".edit").forEach(b=>b.addEventListener("click", ()=>{ openItemForm(data.find(x=>x.id===b.dataset.id)); window.scrollTo({top:0,behavior:"smooth"}); }));
+  box.querySelectorAll(".ser-btn").forEach(b=>b.addEventListener("click", ()=>openSerials(b.dataset.name)));
 }
 
 /* 工番マスタ（工事コード）管理 */
