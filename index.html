@@ -996,21 +996,25 @@ $("stock-pdf").addEventListener("click", () => {
   const now=new Date();
   const stamp=`${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()} ${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
   let low=0;
-  // シリアル1つにつき1行。型式などの品目情報は rowspan でまとめて表示。
+  // 在庫1個につき1行。登録済みシリアルは記入し、シリアル未登録の在庫分は空欄行にする（手書き記入用）。
+  // 型式などの品目情報は rowspan でまとめて表示。
   const body=rows.map((r,idx)=>{
     const cur=Number(r.current_stock);
     const warn=(r.reorder_point!=null && cur<=Number(r.reorder_point));
     const status = warn?"要発注":(cur<=0?"在庫なし":"");
     if(warn||cur<=0) low++;
     const sers=SERIALS_BY_NAME[r.name]||[];
-    const k=Math.max(sers.length,1);
+    const stockRows=cur>0?Math.round(cur):0;        // 在庫数ぶんの行
+    const k=Math.max(sers.length, stockRows, 1);     // シリアル数か在庫数の多い方（最低1行）
     const head=`<td class="num" rowspan="${k}">${idx+1}</td><td rowspan="${k}">${esc(r.name)}</td><td rowspan="${k}">${esc(r.location||"")}</td><td class="num" rowspan="${k}">${cur}</td><td rowspan="${k}">${esc(r.unit||"")}</td><td class="num" rowspan="${k}">${r.reorder_point??""}</td><td rowspan="${k}">${status}</td>`;
     const noteCell=`<td rowspan="${k}">${esc(r.note||"")}</td>`;
-    if(!sers.length){ return `<tr>${head}<td class="ser"></td>${noteCell}</tr>`; }
-    return sers.map((s,i)=>{
-      const serCell=`<td class="ser">${esc(s.serial)}${s.note?`　<span class="sn-note">${esc(s.note)}</span>`:""}</td>`;
-      return i===0 ? `<tr>${head}${serCell}${noteCell}</tr>` : `<tr>${serCell}</tr>`;
-    }).join("");
+    let out="";
+    for(let i=0;i<k;i++){
+      const s=sers[i];
+      const serCell = s ? `<td class="ser">${esc(s.serial)}${s.note?`　<span class="sn-note">${esc(s.note)}</span>`:""}</td>` : `<td class="ser"></td>`;
+      out += i===0 ? `<tr>${head}${serCell}${noteCell}</tr>` : `<tr>${serCell}</tr>`;
+    }
+    return out;
   }).join("");
   $("printArea").innerHTML=`<h1>工事部 資材在庫管理　現在庫一覧</h1>
     <div class="p-meta">出力日時：${stamp}　／　型式数：${rows.length}　／　要発注・在庫なし：${low}件</div>
