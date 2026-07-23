@@ -1160,8 +1160,15 @@ async function loadMaster(){
     const { error } = await db.from("items").update(payload).eq("id",id);
     b.disabled=false;
     if(error){ showMsg(msg,"保存に失敗しました："+error.message,"err"); return; }
-    showMsg(msg,"更新しました。","ok");
-    await loadItems(); await loadMaster();
+    // 一覧全体は再描画せず、この行だけその場で更新（スクロール位置を維持）
+    row.querySelector(".name").innerHTML = esc(name) + (payload.category?`<span class="cat-tag">${esc(payload.category)}</span>`:"");
+    row.querySelector(".stock-meta").textContent =
+      `単位:${payload.unit||"-"} / 初期:${init} / 発注点:${payload.reorder_point??"-"} / ${payload.location||"-"}`;
+    row.querySelector(".item-edit").classList.add("hidden");
+    const eb=row.querySelector(".edit");
+    eb.innerHTML='<i class="ti ti-check"></i> 保存しました';
+    setTimeout(()=>{ eb.innerHTML='<i class="ti ti-pencil"></i> 編集'; },2500);
+    loadItems();  // 記録画面の型式候補を更新（masterList のDOMには触れない）
   }));
 }
 
