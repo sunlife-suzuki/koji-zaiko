@@ -146,6 +146,8 @@
   /* シリアル：在庫行のボタン＋モーダル */
   .ser-btn{display:inline-flex; align-items:center; gap:5px; margin-top:7px; background:var(--btn-soft); color:var(--text);
     border:1px solid var(--input-border); border-radius:8px; padding:5px 10px; font-size:12px; font-weight:700; cursor:pointer;}
+  .cat-tag{display:inline-block; margin-left:8px; padding:1px 8px; border-radius:10px; font-size:11px; font-weight:700;
+    background:var(--btn-soft); color:var(--muted); vertical-align:middle;}
   .ser-ov{position:fixed; inset:0; z-index:200; background:rgba(0,0,0,.45); display:flex; align-items:flex-end; justify-content:center;
     padding:0; -webkit-overflow-scrolling:touch;}
   .ser-box{background:var(--card); width:100%; max-width:560px; max-height:82vh; display:flex; flex-direction:column;
@@ -264,6 +266,7 @@
     #printArea .num{text-align:right;}
     #printArea td.ser{white-space:nowrap; line-height:1.5;}
     #printArea td.ser .sn-note{color:#b00; font-size:.85em; margin-left:4px;}
+    #printArea tr.cat-row td{background:#d9d9d9; font-weight:700; font-size:12px;}
     body.print-landscape #printArea th,body.print-landscape #printArea td{font-size:10px;}
     @page{size:A4 landscape; margin:12mm;}
   }
@@ -386,10 +389,11 @@
         <h1 class="page-title">在庫一覧</h1>
         <div class="card">
           <h2>現在庫数</h2>
-          <input id="stockSearch" type="search" placeholder="型式・シリアルで絞り込み…" style="margin:4px 0 0;" />
+          <input id="stockSearch" type="search" placeholder="型式・カテゴリ・シリアルで絞り込み…" style="margin:4px 0 0;" />
           <div class="btn-row2" style="margin-bottom:12px;">
             <button id="stock-csv" class="btn sub"><i class="ti ti-file-spreadsheet"></i> CSV</button>
             <button id="stock-pdf" class="btn"><i class="ti ti-printer"></i> PDF</button>
+            <button id="stock-pdf-cat" class="btn sub"><i class="ti ti-category"></i> カテゴリ別PDF</button>
           </div>
           <div id="stockList"><div class="spinner">読み込み中…</div></div>
         </div>
@@ -407,6 +411,16 @@
             <input id="m-id" type="hidden" />
             <label>型式・品名 <span class="req">*</span></label>
             <input id="m-name" type="text" placeholder="例: PVCケーブル 5.5sq" />
+            <label>カテゴリ</label>
+            <input id="m-cat" type="text" list="catList" placeholder="例: パネル / ケーブル / 架台・金具" />
+            <datalist id="catList">
+              <option value="パネル"></option>
+              <option value="ケーブル"></option>
+              <option value="架台・金具"></option>
+              <option value="パワコン(PCS)"></option>
+              <option value="蓄電池"></option>
+              <option value="その他資材"></option>
+            </datalist>
             <div class="grid2">
               <div><label>単位</label><input id="m-unit" type="text" placeholder="巻 / 本 / 個 / m" /></div>
               <div><label>初期在庫数 <span class="req">*</span></label><input id="m-init" type="number" inputmode="decimal" step="any" placeholder="0" /></div>
@@ -904,8 +918,8 @@ async function delRecord(id){
 /* 現在庫CSV出力 */
 $("stock-csv").addEventListener("click", ()=>{
   const rows=window._stock||[]; if(!rows.length) return;
-  const data=[["型式・品名","保管場所","現在庫数","単位","発注点","状態","備考"]];
-  rows.forEach(r=>{ const cur=Number(r.current_stock); const warn=(r.reorder_point!=null&&cur<=Number(r.reorder_point)); const status=warn?"要発注":(cur<=0?"在庫なし":""); data.push([r.name,r.location||"",cur,r.unit||"",r.reorder_point??"",status,r.note||""]); });
+  const data=[["型式・品名","カテゴリ","保管場所","現在庫数","単位","発注点","状態","備考"]];
+  rows.forEach(r=>{ const cur=Number(r.current_stock); const warn=(r.reorder_point!=null&&cur<=Number(r.reorder_point)); const status=warn?"要発注":(cur<=0?"在庫なし":""); data.push([r.name,r.category||"",r.location||"",cur,r.unit||"",r.reorder_point??"",status,r.note||""]); });
   downloadCSV(`在庫一覧_${todayStr()}.csv`, data);
 });
 
@@ -928,7 +942,7 @@ async function loadSerials(){
 function renderStock(rows){
   const kw=$("stockSearch").value.trim().toLowerCase(), box=$("stockList");
   const matchSerial=(name)=>(SERIALS_BY_NAME[name]||[]).some(x=>x.serial.toLowerCase().includes(kw)||(x.note&&x.note.toLowerCase().includes(kw)));
-  const list=rows.filter(r=>!kw||(r.name||"").toLowerCase().includes(kw)||matchSerial(r.name));
+  const list=rows.filter(r=>!kw||(r.name||"").toLowerCase().includes(kw)||(r.category||"").toLowerCase().includes(kw)||matchSerial(r.name));
   if(!list.length){ box.innerHTML='<p class="muted center">該当する型式がありません。</p>'; return; }
   box.innerHTML='<div class="stock-grid">'+list.map(r=>{
     const cur=Number(r.current_stock);
@@ -937,8 +951,9 @@ function renderStock(rows){
     const badge = warn ? '<span class="badge warn">要発注</span>' : (cur<=0 ? '<span class="badge warn">在庫なし</span>' : "");
     const sn=(SERIALS_BY_NAME[r.name]||[]).length;
     const serBtn = sn ? `<button type="button" class="ser-btn" data-name="${esc(r.name)}"><i class="ti ti-barcode"></i> シリアル ${sn}件</button>` : "";
+    const catTag = r.category ? `<span class="cat-tag">${esc(r.category)}</span>` : "";
     return `<div class="stock-row${low?" low":""}">
-      <div><div class="stock-name">${esc(r.name)}</div>
+      <div><div class="stock-name">${esc(r.name)}${catTag}</div>
         <div class="stock-meta">${r.location?esc(r.location)+" / ":""}出庫計 ${r.total_out} ・ 入庫返却計 ${r.total_in}</div>
         ${badge}${serBtn}</div>
       <div class="stock-num"><b style="color:${low?'var(--red)':'inherit'}">${cur}</b><span class="u">${esc(r.unit||"")}</span></div>
@@ -990,41 +1005,69 @@ $("f-serial-pick").addEventListener("click", ()=>{ const n=currentItemName(); if
 $("stockSearch").addEventListener("input", ()=>{ if(window._stock) renderStock(window._stock); });
 
 /* 現在庫一覧のPDF出力（全件のスナップショット） */
-$("stock-pdf").addEventListener("click", () => {
-  const rows = window._stock || [];
-  if(!rows.length){ return; }
-  const now=new Date();
-  const stamp=`${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()} ${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
-  let low=0;
-  // 在庫1個につき1行。登録済みシリアルは記入し、シリアル未登録の在庫分は空欄行にする（手書き記入用）。
-  // 型式などの品目情報は rowspan でまとめて表示。
-  const body=rows.map((r,idx)=>{
+// 在庫1個につき1行。登録済みシリアルは記入し、シリアル未登録の在庫分は空欄行にする（手書き記入用）。
+// 型式などの品目情報は rowspan でまとめて表示。showCat=true でカテゴリ列を含める。
+function buildStockRows(rows, startNo, showCat){
+  let low=0, out="", no=startNo;
+  rows.forEach(r=>{
     const cur=Number(r.current_stock);
     const warn=(r.reorder_point!=null && cur<=Number(r.reorder_point));
     const status = warn?"要発注":(cur<=0?"在庫なし":"");
     if(warn||cur<=0) low++;
     const sers=SERIALS_BY_NAME[r.name]||[];
-    const stockRows=cur>0?Math.round(cur):0;        // 在庫数ぶんの行
-    const k=Math.max(sers.length, stockRows, 1);     // シリアル数か在庫数の多い方（最低1行）
-    const head=`<td class="num" rowspan="${k}">${idx+1}</td><td rowspan="${k}">${esc(r.name)}</td><td rowspan="${k}">${esc(r.location||"")}</td><td class="num" rowspan="${k}">${cur}</td><td rowspan="${k}">${esc(r.unit||"")}</td><td class="num" rowspan="${k}">${r.reorder_point??""}</td><td rowspan="${k}">${status}</td>`;
+    const stockRows=cur>0?Math.round(cur):0;
+    const k=Math.max(sers.length, stockRows, 1);
+    const catCell = showCat?`<td rowspan="${k}">${esc(r.category||"")}</td>`:"";
+    const head=`<td class="num" rowspan="${k}">${no}</td><td rowspan="${k}">${esc(r.name)}</td>${catCell}<td rowspan="${k}">${esc(r.location||"")}</td><td class="num" rowspan="${k}">${cur}</td><td rowspan="${k}">${esc(r.unit||"")}</td><td class="num" rowspan="${k}">${r.reorder_point??""}</td><td rowspan="${k}">${status}</td>`;
     const noteCell=`<td rowspan="${k}">${esc(r.note||"")}</td>`;
-    let out="";
     for(let i=0;i<k;i++){
       const s=sers[i];
       const serCell = s ? `<td class="ser">${esc(s.serial)}${s.note?`　<span class="sn-note">${esc(s.note)}</span>`:""}</td>` : `<td class="ser"></td>`;
       out += i===0 ? `<tr>${head}${serCell}${noteCell}</tr>` : `<tr>${serCell}</tr>`;
     }
-    return out;
-  }).join("");
-  $("printArea").innerHTML=`<h1>工事部 資材在庫管理　現在庫一覧</h1>
-    <div class="p-meta">出力日時：${stamp}　／　型式数：${rows.length}　／　要発注・在庫なし：${low}件</div>
-    <table><thead><tr><th>No.</th><th>型式・品名</th><th>保管場所</th><th>現在庫数</th><th>単位</th><th>発注点</th><th>状態</th><th>シリアルNo</th><th>備考</th></tr></thead>
-    <tbody>${body}</tbody></table>`;
+    no++;
+  });
+  return { html:out, low, nextNo:no };
+}
+function printStockPdf(){
   // シリアル列が広いので在庫PDFは横向きで印刷（履歴PDFには影響させない）
   const ps=document.createElement("style"); ps.id="stockPageStyle"; ps.media="print"; ps.textContent="@page{size:A4 landscape; margin:10mm;}";
   document.head.appendChild(ps); document.body.classList.add("print-landscape");
   window.print();
   ps.remove(); document.body.classList.remove("print-landscape");
+}
+function nowStamp(){
+  const now=new Date();
+  return `${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()} ${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
+}
+$("stock-pdf").addEventListener("click", () => {
+  const rows = window._stock || [];
+  if(!rows.length){ return; }
+  const { html, low } = buildStockRows(rows, 1, true);
+  $("printArea").innerHTML=`<h1>工事部 資材在庫管理　現在庫一覧</h1>
+    <div class="p-meta">出力日時：${nowStamp()}　／　型式数：${rows.length}　／　要発注・在庫なし：${low}件</div>
+    <table><thead><tr><th>No.</th><th>型式・品名</th><th>カテゴリ</th><th>保管場所</th><th>現在庫数</th><th>単位</th><th>発注点</th><th>状態</th><th>シリアルNo</th><th>備考</th></tr></thead>
+    <tbody>${html}</tbody></table>`;
+  printStockPdf();
+});
+/* カテゴリ別PDF：カテゴリごとに小見出しを付けて出力 */
+$("stock-pdf-cat").addEventListener("click", () => {
+  const rows = window._stock || [];
+  if(!rows.length){ return; }
+  const groups={};
+  rows.forEach(r=>{ const c=(r.category&&r.category.trim())||"未分類"; (groups[c]=groups[c]||[]).push(r); });
+  const cats=Object.keys(groups).sort((a,b)=> a==="未分類"?1 : b==="未分類"?-1 : a.localeCompare(b,'ja'));
+  let body="", low=0, no=1;
+  cats.forEach(c=>{
+    body+=`<tr class="cat-row"><td colspan="9">■ ${esc(c)}（${groups[c].length}型式）</td></tr>`;
+    const res=buildStockRows(groups[c], no, false);
+    body+=res.html; low+=res.low; no=res.nextNo;
+  });
+  $("printArea").innerHTML=`<h1>工事部 資材在庫管理　現在庫一覧（カテゴリ別）</h1>
+    <div class="p-meta">出力日時：${nowStamp()}　／　型式数：${rows.length}　／　カテゴリ数：${cats.length}　／　要発注・在庫なし：${low}件</div>
+    <table><thead><tr><th>No.</th><th>型式・品名</th><th>保管場所</th><th>現在庫数</th><th>単位</th><th>発注点</th><th>状態</th><th>シリアルNo</th><th>備考</th></tr></thead>
+    <tbody>${body}</tbody></table>`;
+  printStockPdf();
 });
 
 /* 型式マスタ */
@@ -1033,6 +1076,7 @@ $("cancelItemBtn").addEventListener("click", ()=>$("itemForm").classList.add("hi
 function openItemForm(it){
   $("itemForm").classList.remove("hidden");
   $("m-id").value=it?.id||""; $("m-name").value=it?.name||""; $("m-unit").value=it?.unit||"";
+  $("m-cat").value=it?.category||"";
   $("m-init").value=it?.initial_stock??""; $("m-reorder").value=it?.reorder_point??"";
   $("m-loc").value=it?.location||""; $("m-note").value=it?.note||""; $("m-name").focus();
 }
@@ -1040,7 +1084,7 @@ $("saveItemBtn").addEventListener("click", async () => {
   const msg=$("mstMsg"), id=$("m-id").value, name=$("m-name").value.trim(), init=parseFloat($("m-init").value);
   if(!name){ showMsg(msg,"型式・品名を入力してください。","err"); return; }
   if(isNaN(init)){ showMsg(msg,"初期在庫数を入力してください（0でも可）。","err"); return; }
-  const payload={ name, unit:$("m-unit").value.trim()||null, initial_stock:init,
+  const payload={ name, unit:$("m-unit").value.trim()||null, category:$("m-cat").value.trim()||null, initial_stock:init,
     reorder_point:$("m-reorder").value!==""?parseFloat($("m-reorder").value):null,
     location:$("m-loc").value.trim()||null, note:$("m-note").value.trim()||null };
   $("saveItemBtn").disabled=true;
@@ -1061,8 +1105,9 @@ async function loadMaster(){
   box.innerHTML=data.map(i=>{
     const sn=(SERIALS_BY_NAME[i.name]||[]).length;
     const serBtn = sn ? `<button type="button" class="ser-btn" data-name="${esc(i.name)}"><i class="ti ti-barcode"></i> シリアル ${sn}件</button>` : "";
+    const catBadge = i.category ? `<span class="cat-tag">${esc(i.category)}</span>` : "";
     return `<div class="item-admin">
-      <div class="top"><span class="name">${esc(i.name)}</span><button class="edit" data-id="${i.id}">編集</button></div>
+      <div class="top"><span class="name">${esc(i.name)}${catBadge}</span><button class="edit" data-id="${i.id}">編集</button></div>
       <div class="stock-meta">単位:${esc(i.unit||"-")} / 初期:${i.initial_stock} / 発注点:${i.reorder_point??"-"} / ${esc(i.location||"-")}</div>
       ${serBtn}
     </div>`;}).join("");
