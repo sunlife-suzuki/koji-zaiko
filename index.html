@@ -70,8 +70,9 @@
     display:grid; grid-template-columns:repeat(4,1fr);
     padding-bottom:env(safe-area-inset-bottom);
   }
-  nav.bottom.admin{grid-template-columns:repeat(6,1fr);}
-  nav.bottom.admin button{padding:9px 2px 7px; font-size:10.5px;}
+  nav.bottom.admin{grid-template-columns:repeat(7,1fr);}
+  nav.bottom.admin button{padding:9px 1px 7px; font-size:10px;}
+  nav.bottom.admin button i{font-size:19px;}
   nav.bottom button{background:none; border:none; padding:9px 4px 7px; font-size:11px; color:var(--muted); font-weight:600; border-top:2px solid transparent;}
   nav.bottom button i{display:block; font-size:21px; line-height:1; margin-bottom:2px;}
   nav.bottom button.active{color:var(--amber-strong); border-top-color:var(--amber);}
@@ -253,6 +254,18 @@
   .cost-tbl th,.cost-tbl td{border-bottom:1px solid var(--line); padding:5px 6px; text-align:left;}
   .cost-tbl .num{text-align:right; white-space:nowrap;}
   .cost-tbl .cost-tot td{font-weight:700; border-top:2px solid var(--line);}
+  .cost-stats{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin:4px 0 12px;}
+  .cost-stat{background:var(--btn-soft); border:1px solid var(--line); border-radius:10px; padding:9px 10px; text-align:center;}
+  .cost-stat .cs-lbl{font-size:11px; color:var(--muted);}
+  .cost-stat .cs-val{font-size:16px; font-weight:700; margin-top:2px; word-break:break-all;}
+  @media (max-width:560px){ .cost-stats{grid-template-columns:repeat(2,1fr);} }
+  .cost-main{flex:1; min-width:0;}
+  .cost-line{display:flex; align-items:center; gap:8px;}
+  .cost-rank{flex:0 0 auto; width:22px; height:22px; border-radius:50%; background:var(--amber); color:var(--amber-ink); font-size:12px; font-weight:700; display:inline-flex; align-items:center; justify-content:center;}
+  .cost-line .cost-job{font-weight:700; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .cost-line .cost-amt{font-weight:700; white-space:nowrap;}
+  .cost-bar{margin-top:6px; height:7px; background:var(--btn-soft); border-radius:5px; overflow:hidden;}
+  .cost-bar span{display:block; height:100%; background:var(--amber); border-radius:5px;}
 
   .tbl-wrap{overflow-x:auto; -webkit-overflow-scrolling:touch;}
   table.tbl{width:100%; border-collapse:collapse; font-size:13px; min-width:640px;}
@@ -318,6 +331,7 @@
     <button class="side-link" data-view="master"><i class="ti ti-package"></i> 資材マスタ</button>
     <button class="side-link" data-view="jobmaster"><i class="ti ti-hash"></i> 工番マスタ</button>
     <button class="side-link nav-admin hidden" data-view="stocktake"><i class="ti ti-clipboard-check"></i> 棚卸し</button>
+    <button class="side-link nav-admin hidden" data-view="cost"><i class="ti ti-report-money"></i> 原価</button>
     <button class="side-link nav-admin hidden" data-view="admin"><i class="ti ti-history"></i> 履歴・出力</button>
     <div class="side-foot">
       <div class="u" id="sideWho"></div>
@@ -510,16 +524,26 @@
         </div>
       </section>
 
+      <!-- 管理者：原価 -->
+      <section id="view-cost" class="hidden">
+        <h1 class="page-title">原価（工番・現場別）</h1>
+        <div class="card">
+          <h2>工番別 原価ランキング</h2>
+          <p class="sub">出庫時点の単価をもとに、工番（現場）ごとの資材原価を集計します（出庫 − 返却）。金額の高い順に表示。工番をタップすると型式ごとの内訳が開き、PDFも出力できます。</p>
+          <div id="cost-stats" class="cost-stats"></div>
+          <div class="cat-pdf-row" style="margin:4px 0 10px;">
+            <input id="cost-search" type="search" class="cat-sel" placeholder="工番・工事名で絞り込み…" style="margin:0;" />
+            <button id="cost-csv" class="btn sub"><i class="ti ti-file-spreadsheet"></i> CSV</button>
+            <button id="cost-pdf-all" class="btn sub"><i class="ti ti-file-type-pdf"></i> 一覧PDF</button>
+          </div>
+          <div id="cost-list"><div class="spinner">読み込み中…</div></div>
+        </div>
+      </section>
+
       <!-- 管理者：履歴・出力 -->
       <section id="view-admin" class="hidden">
         <h1 class="page-title">履歴・出力</h1>
         <div id="admMsg" class="msg"></div>
-        <div class="card">
-          <h2>工番別 原価（現場原価）</h2>
-          <p class="sub">出庫時点の単価をもとに、工番（現場）ごとの資材原価を集計します（出庫 − 返却）。工番をタップすると型式ごとの内訳が開き、その工番のPDFも出力できます。</p>
-          <input id="cost-search" type="search" placeholder="工番・工事名で絞り込み…" style="margin:4px 0 8px;" />
-          <div id="cost-list"><div class="spinner">読み込み中…</div></div>
-        </div>
         <div class="card">
           <h2>入出庫の詳細履歴</h2>
           <p class="sub">管理者のみ閲覧できます。データは直近1年分を保持します。</p>
@@ -562,6 +586,7 @@
       <button data-view="master"><i class="ti ti-package"></i>資材</button>
       <button data-view="jobmaster"><i class="ti ti-hash"></i>工番</button>
       <button class="nav-admin hidden" data-view="stocktake"><i class="ti ti-clipboard-check"></i>棚卸し</button>
+      <button class="nav-admin hidden" data-view="cost"><i class="ti ti-report-money"></i>原価</button>
       <button class="nav-admin hidden" data-view="admin"><i class="ti ti-history"></i>履歴</button>
     </nav>
   </div>
@@ -639,12 +664,13 @@ db.auth.onAuthStateChange((_e,s)=>{ if(s) boot(); });
 /* タブ切替（サイドバー・下タブ共通） */
 function switchView(v){
   document.querySelectorAll("[data-view]").forEach(x=>x.classList.toggle("active", x.dataset.view===v));
-  ["record","stock","master","jobmaster","stocktake","admin"].forEach(n=>$("view-"+n).classList.toggle("hidden", n!==v));
+  ["record","stock","master","jobmaster","stocktake","cost","admin"].forEach(n=>$("view-"+n).classList.toggle("hidden", n!==v));
   if(v==="stock") loadStock();
   if(v==="master") loadMaster();
   if(v==="jobmaster") loadJobMaster();
   if(v==="stocktake") loadStocktake();
-  if(v==="admin"){ loadHistory(); loadAdmins(); loadJobCosts(); }
+  if(v==="cost") loadJobCosts();
+  if(v==="admin"){ loadHistory(); loadAdmins(); }
   window.scrollTo({top:0});
 }
 document.querySelectorAll("[data-view]").forEach(b=>b.addEventListener("click", ()=>switchView(b.dataset.view)));
@@ -1299,17 +1325,35 @@ async function loadJobCosts(){
 }
 function renderCostList(){
   const kw=normName($("cost-search").value), box=$("cost-list");
-  const list=JOBCOSTS_ALL.filter(j=>!kw || normName([j.job_no,j.work_name].filter(Boolean).join(" ")).includes(kw));
+  const list=JOBCOSTS_ALL.filter(j=>!kw || normName([j.job_no,j.work_name].filter(Boolean).join(" ")).includes(kw))
+    .slice().sort((a,b)=>Number(b.total_cost||0)-Number(a.total_cost||0));   // 金額の高い順
+  // 全体サマリー（絞り込み前の全工番で集計）
+  const stEl=$("cost-stats");
+  if(stEl){
+    const all=JOBCOSTS_ALL, grand=all.reduce((s,j)=>s+Number(j.total_cost||0),0);
+    const max=all.reduce((m,j)=>Math.max(m,Number(j.total_cost||0)),0);
+    const avg=all.length?Math.round(grand/all.length):0;
+    stEl.innerHTML=`
+      <div class="cost-stat"><div class="cs-lbl">工番数</div><div class="cs-val">${all.length}</div></div>
+      <div class="cost-stat"><div class="cs-lbl">原価合計</div><div class="cs-val">${yen(grand)}</div></div>
+      <div class="cost-stat"><div class="cs-lbl">最高工番</div><div class="cs-val">${yen(max)}</div></div>
+      <div class="cost-stat"><div class="cs-lbl">平均/工番</div><div class="cs-val">${yen(avg)}</div></div>`;
+  }
   if(!list.length){ box.innerHTML='<p class="muted center">該当する原価データがありません（工番付きの出庫記録が必要です）。</p>'; return; }
-  const grand=list.reduce((s,j)=>s+Number(j.total_cost||0),0);
-  box.innerHTML=`<div class="muted" style="margin-bottom:6px;">${list.length}件　合計 ${yen(grand)}</div>`+list.map(j=>`
-    <div class="cost-row" data-job="${esc(j.job_no)}">
+  const maxCost=Math.max(1, ...list.map(j=>Number(j.total_cost||0)));
+  box.innerHTML=`<div class="muted" style="margin-bottom:6px;">${list.length}件（金額の高い順）</div>`+list.map((j,idx)=>{
+    const c=Number(j.total_cost||0);
+    const pct=Math.max(2, Math.round(c/maxCost*100));
+    return `<div class="cost-row" data-job="${esc(j.job_no)}">
       <div class="cost-head">
-        <div><div class="cost-job">${esc(j.job_no)}</div>${j.work_name?`<div class="cost-work">${esc(j.work_name)}</div>`:""}</div>
-        <div class="cost-amt">${yen(j.total_cost)}</div>
+        <div class="cost-main">
+          <div class="cost-line"><span class="cost-rank">${idx+1}</span><span class="cost-job">${esc(j.job_no)}</span><span class="cost-amt">${yen(c)}</span></div>
+          ${j.work_name?`<div class="cost-work">${esc(j.work_name)}</div>`:""}
+          <div class="cost-bar"><span style="width:${pct}%"></span></div>
+        </div>
       </div>
       <div class="cost-detail hidden"></div>
-    </div>`).join("");
+    </div>`;}).join("");
   box.querySelectorAll(".cost-row .cost-head").forEach(h=>h.addEventListener("click", ()=>toggleCostDetail(h.closest(".cost-row"))));
 }
 async function toggleCostDetail(row){
@@ -1338,6 +1382,25 @@ function printJobCost(job, rows, total){
     <tr><td colspan="5" style="text-align:right;font-weight:700;">合計</td><td class="num" style="font-weight:700;">${yen(total)}</td></tr></tbody></table>`;
   window.print();
 }
+function costListSorted(){
+  return JOBCOSTS_ALL.slice().sort((a,b)=>Number(b.total_cost||0)-Number(a.total_cost||0));
+}
+$("cost-csv").addEventListener("click", ()=>{
+  const list=costListSorted(); if(!list.length) return;
+  const data=[["順位","工番","工事名","出庫数","返却数","型式数","原価"]];
+  list.forEach((j,i)=>data.push([i+1,j.job_no,j.work_name||"",j.out_qty,j.ret_qty,j.item_count,Number(j.total_cost||0)]));
+  downloadCSV(`工番別原価_${todayStr()}.csv`, data);
+});
+$("cost-pdf-all").addEventListener("click", ()=>{
+  const list=costListSorted(); if(!list.length) return;
+  const grand=list.reduce((s,j)=>s+Number(j.total_cost||0),0);
+  $("printArea").innerHTML=`<h1>工番別 資材原価 一覧</h1>
+    <div class="p-meta">出力日時：${nowStamp()}　／　工番数：${list.length}　／　原価合計：${yen(grand)}（金額の高い順）</div>
+    <table><thead><tr><th>順位</th><th>工番</th><th>工事名</th><th class="num">出庫</th><th class="num">返却</th><th class="num">型式数</th><th class="num">原価</th></tr></thead>
+    <tbody>${list.map((j,i)=>`<tr><td class="num">${i+1}</td><td>${esc(j.job_no)}</td><td>${esc(j.work_name||"")}</td><td class="num">${j.out_qty}</td><td class="num">${j.ret_qty}</td><td class="num">${j.item_count}</td><td class="num">${yen(j.total_cost)}</td></tr>`).join("")}
+    <tr><td colspan="6" style="text-align:right;font-weight:700;">合計</td><td class="num" style="font-weight:700;">${yen(grand)}</td></tr></tbody></table>`;
+  window.print();
+});
 let HISTORY_ALL=[];
 $("cost-search").addEventListener("input", ()=>{ if(JOBCOSTS_ALL.length||$("cost-search").value) renderCostList(); });
 $("adm-load").addEventListener("click", loadHistory);
