@@ -242,6 +242,17 @@
   @media (prefers-color-scheme: dark){ .item-admin .edit{color:var(--amber);} }
   .item-admin .item-edit{margin-top:12px; padding-top:12px; border-top:1px dashed var(--line);}
   .note-view{font-size:12.5px; color:var(--muted); margin-top:4px; white-space:pre-line; word-break:break-word;}
+  .cost-row{border:1px solid var(--line); border-radius:11px; margin-bottom:8px; overflow:hidden;}
+  .cost-head{display:flex; justify-content:space-between; align-items:center; gap:10px; padding:11px 13px; cursor:pointer;}
+  .cost-head:hover{background:var(--btn-soft);}
+  .cost-job{font-weight:700;}
+  .cost-work{font-size:12px; color:var(--muted); margin-top:2px;}
+  .cost-amt{font-weight:700; font-size:16px; white-space:nowrap;}
+  .cost-detail{padding:0 13px 12px;}
+  .cost-tbl{width:100%; border-collapse:collapse; font-size:13px; margin-top:4px;}
+  .cost-tbl th,.cost-tbl td{border-bottom:1px solid var(--line); padding:5px 6px; text-align:left;}
+  .cost-tbl .num{text-align:right; white-space:nowrap;}
+  .cost-tbl .cost-tot td{font-weight:700; border-top:2px solid var(--line);}
 
   .tbl-wrap{overflow-x:auto; -webkit-overflow-scrolling:touch;}
   table.tbl{width:100%; border-collapse:collapse; font-size:13px; min-width:640px;}
@@ -504,6 +515,12 @@
         <h1 class="page-title">履歴・出力</h1>
         <div id="admMsg" class="msg"></div>
         <div class="card">
+          <h2>工番別 原価（現場原価）</h2>
+          <p class="sub">出庫時点の単価をもとに、工番（現場）ごとの資材原価を集計します（出庫 − 返却）。工番をタップすると型式ごとの内訳が開き、その工番のPDFも出力できます。</p>
+          <input id="cost-search" type="search" placeholder="工番・工事名で絞り込み…" style="margin:4px 0 8px;" />
+          <div id="cost-list"><div class="spinner">読み込み中…</div></div>
+        </div>
+        <div class="card">
           <h2>入出庫の詳細履歴</h2>
           <p class="sub">管理者のみ閲覧できます。データは直近1年分を保持します。</p>
           <label>対象月</label>
@@ -627,7 +644,7 @@ function switchView(v){
   if(v==="master") loadMaster();
   if(v==="jobmaster") loadJobMaster();
   if(v==="stocktake") loadStocktake();
-  if(v==="admin"){ loadHistory(); loadAdmins(); }
+  if(v==="admin"){ loadHistory(); loadAdmins(); loadJobCosts(); }
   window.scrollTo({top:0});
 }
 document.querySelectorAll("[data-view]").forEach(b=>b.addEventListener("click", ()=>switchView(b.dataset.view)));
@@ -714,7 +731,7 @@ async function createNewItem(name, unit){
 
 /* 型式読み込み */
 async function loadItems(){
-  const { data, error } = await db.from("items").select("id,name,unit").eq("is_active",true).order("name");
+  const { data, error } = await db.from("items").select("id,name,unit,unit_price").eq("is_active",true).order("name");
   if(error){ console.error(error); return; }
   ITEMS_CACHE = data||[];
   renderItemOptions();
@@ -800,7 +817,8 @@ $("submitBtn").addEventListener("click", async () => {
     if(!item_id){ showMsg(msg,"型式・品名を選んでください。","err"); $("submitBtn").disabled=false; return; }
     const upd={ item_id, tx_type:txType, quantity:qty, tx_date:date,
       job_no:$("f-job").value.trim()||null, counterparty:$("f-cp").value.trim()||null,
-      person, note:$("f-note").value.trim()||null, serials:$("f-serials").value.trim()||null };
+      person, note:$("f-note").value.trim()||null, serials:$("f-serials").value.trim()||null,
+      unit_price: ITEMS_CACHE.find(i=>i.id===item_id)?.unit_price ?? null };
     if(newAttachment) upd.attachment_path=newAttachment;
     const { error } = await db.from("transactions").update(upd).eq("id", EDIT_ID);
     $("submitBtn").disabled=false;
@@ -853,11 +871,12 @@ $("submitBtn").addEventListener("click", async () => {
     if(!item_id){ showMsg(msg,"型式・品名を選んでください。","err"); $("submitBtn").disabled=false; return; }
     itemName = ITEMS_CACHE.find(i=>i.id===item_id)?.name || "";
   }
+  const unitPrice = ITEMS_CACHE.find(i=>i.id===item_id)?.unit_price ?? null;  // 記録時点の単価を保存（原価計算用）
   const { error } = await db.from("transactions").insert({
     item_id, tx_type:txType, quantity:qty, tx_date:date,
     job_no:$("f-job").value.trim()||null, counterparty:$("f-cp").value.trim()||null,
     person, note:$("f-note").value.trim()||null, attachment_path:newAttachment,
-    serials:$("f-serials").value.trim()||null
+    serials:$("f-serials").value.trim()||null, unit_price:unitPrice
   });
   $("submitBtn").disabled=false;
   if(error){ showMsg(msg,"記録に失敗しました："+error.message,"err"); return; }
@@ -1269,7 +1288,58 @@ $("delJobCodeBtn").addEventListener("click", async ()=>{
 /* 履歴 */
 function monthRange(ym){ const [y,m]=ym.split("-").map(Number); const last=new Date(y,m,0).getDate();
   return { from:`${y}-${String(m).padStart(2,"0")}-01`, to:`${y}-${String(m).padStart(2,"0")}-${String(last).padStart(2,"0")}` }; }
+/* 工番別 原価 */
+let JOBCOSTS_ALL=[];
+async function loadJobCosts(){
+  const box=$("cost-list"); if(!box) return;
+  box.innerHTML='<div class="spinner">読み込み中…</div>';
+  const { data, error } = await db.rpc("list_job_costs");
+  if(error){ box.innerHTML=`<div class="msg err">読み込み失敗：${esc(error.message)}</div>`; return; }
+  JOBCOSTS_ALL=data||[]; renderCostList();
+}
+function renderCostList(){
+  const kw=normName($("cost-search").value), box=$("cost-list");
+  const list=JOBCOSTS_ALL.filter(j=>!kw || normName([j.job_no,j.work_name].filter(Boolean).join(" ")).includes(kw));
+  if(!list.length){ box.innerHTML='<p class="muted center">該当する原価データがありません（工番付きの出庫記録が必要です）。</p>'; return; }
+  const grand=list.reduce((s,j)=>s+Number(j.total_cost||0),0);
+  box.innerHTML=`<div class="muted" style="margin-bottom:6px;">${list.length}件　合計 ${yen(grand)}</div>`+list.map(j=>`
+    <div class="cost-row" data-job="${esc(j.job_no)}">
+      <div class="cost-head">
+        <div><div class="cost-job">${esc(j.job_no)}</div>${j.work_name?`<div class="cost-work">${esc(j.work_name)}</div>`:""}</div>
+        <div class="cost-amt">${yen(j.total_cost)}</div>
+      </div>
+      <div class="cost-detail hidden"></div>
+    </div>`).join("");
+  box.querySelectorAll(".cost-row .cost-head").forEach(h=>h.addEventListener("click", ()=>toggleCostDetail(h.closest(".cost-row"))));
+}
+async function toggleCostDetail(row){
+  const box=row.querySelector(".cost-detail"), job=row.dataset.job;
+  if(!box.classList.contains("hidden")){ box.classList.add("hidden"); return; }
+  if(!box.dataset.loaded){
+    box.innerHTML='<div class="spinner">読み込み中…</div>'; box.classList.remove("hidden");
+    const { data, error } = await db.rpc("job_cost_detail",{ p_job:job });
+    if(error){ box.innerHTML=`<div class="msg err">${esc(error.message)}</div>`; return; }
+    const rows=data||[];
+    const total=rows.reduce((s,r)=>s+Number(r.amount||0),0);
+    box.innerHTML=`<table class="cost-tbl"><thead><tr><th>型式・品名</th><th>単価</th><th class="num">出庫</th><th class="num">返却</th><th class="num">正味</th><th class="num">金額</th></tr></thead>
+      <tbody>${rows.map(r=>`<tr><td>${esc(r.name)}</td><td>${yen(r.unit_price)}</td><td class="num">${r.out_qty}</td><td class="num">${r.ret_qty}</td><td class="num">${r.net_qty}</td><td class="num">${yen(r.amount)}</td></tr>`).join("")}
+      <tr class="cost-tot"><td colspan="5">合計</td><td class="num">${yen(total)}</td></tr></tbody></table>
+      <button type="button" class="btn sub cost-pdf" style="margin-top:10px;"><i class="ti ti-file-type-pdf"></i> この工番の原価PDF</button>`;
+    box.dataset.loaded="1";
+    box.querySelector(".cost-pdf").addEventListener("click", ()=>printJobCost(job, rows, total));
+  } else box.classList.remove("hidden");
+}
+function printJobCost(job, rows, total){
+  const j=JOBCOSTS_ALL.find(x=>x.job_no===job)||{};
+  $("printArea").innerHTML=`<h1>工番別 資材原価</h1>
+    <div class="p-meta">出力日時：${nowStamp()}　／　工番：${esc(job)}${j.work_name?`　／　工事名：${esc(j.work_name)}`:""}</div>
+    <table><thead><tr><th>型式・品名</th><th>単価</th><th>出庫</th><th>返却</th><th>正味</th><th>金額</th></tr></thead>
+    <tbody>${rows.map(r=>`<tr><td>${esc(r.name)}</td><td class="num">${yen(r.unit_price)}</td><td class="num">${r.out_qty}</td><td class="num">${r.ret_qty}</td><td class="num">${r.net_qty}</td><td class="num">${yen(r.amount)}</td></tr>`).join("")}
+    <tr><td colspan="5" style="text-align:right;font-weight:700;">合計</td><td class="num" style="font-weight:700;">${yen(total)}</td></tr></tbody></table>`;
+  window.print();
+}
 let HISTORY_ALL=[];
+$("cost-search").addEventListener("input", ()=>{ if(JOBCOSTS_ALL.length||$("cost-search").value) renderCostList(); });
 $("adm-load").addEventListener("click", loadHistory);
 $("adm-type").addEventListener("change", applyHistoryFilter);
 async function loadHistory(){
