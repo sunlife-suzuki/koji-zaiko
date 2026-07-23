@@ -235,8 +235,9 @@
   .item-admin{border:1px solid var(--line); border-radius:11px; padding:11px 13px; margin-bottom:8px;}
   .item-admin .top{display:flex; justify-content:space-between; align-items:center;}
   .item-admin .name{font-weight:600;}
-  .item-admin .edit{background:none; border:none; color:var(--amber-strong); font-size:13px; font-weight:700; cursor:pointer;}
+  .item-admin .edit{background:none; border:none; color:var(--amber-strong); font-size:13px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px;}
   @media (prefers-color-scheme: dark){ .item-admin .edit{color:var(--amber);} }
+  .item-admin .item-edit{margin-top:12px; padding-top:12px; border-top:1px dashed var(--line);}
 
   .tbl-wrap{overflow-x:auto; -webkit-overflow-scrolling:touch;}
   table.tbl{width:100%; border-collapse:collapse; font-size:13px; min-width:640px;}
@@ -1102,17 +1103,66 @@ async function loadMaster(){
   const { data, error } = await db.from("items").select("*").eq("is_active",true).order("name");
   if(error){ box.innerHTML=`<div class="msg err">読み込み失敗：${esc(error.message)}</div>`; return; }
   if(!data||!data.length){ box.innerHTML='<p class="muted center">まだ登録がありません。</p>'; return; }
+  const av=v=>esc(v==null?"":v);   // 属性値用
   box.innerHTML=data.map(i=>{
     const sn=(SERIALS_BY_NAME[i.name]||[]).length;
     const serBtn = sn ? `<button type="button" class="ser-btn" data-name="${esc(i.name)}"><i class="ti ti-barcode"></i> シリアル ${sn}件</button>` : "";
     const catBadge = i.category ? `<span class="cat-tag">${esc(i.category)}</span>` : "";
-    return `<div class="item-admin">
-      <div class="top"><span class="name">${esc(i.name)}${catBadge}</span><button class="edit" data-id="${i.id}">編集</button></div>
+    return `<div class="item-admin" data-id="${i.id}">
+      <div class="top"><span class="name">${esc(i.name)}${catBadge}</span><button type="button" class="edit" data-id="${i.id}"><i class="ti ti-pencil"></i> 編集</button></div>
       <div class="stock-meta">単位:${esc(i.unit||"-")} / 初期:${i.initial_stock} / 発注点:${i.reorder_point??"-"} / ${esc(i.location||"-")}</div>
       ${serBtn}
+      <div class="item-edit hidden">
+        <label>型式・品名 <span class="req">*</span></label>
+        <input class="e-name" type="text" value="${av(i.name)}" />
+        <label>カテゴリ</label>
+        <input class="e-cat" type="text" list="catList" value="${av(i.category)}" placeholder="例: パネル / ケーブル / 架台・金具" />
+        <div class="grid2">
+          <div><label>単位</label><input class="e-unit" type="text" value="${av(i.unit)}" /></div>
+          <div><label>初期在庫数 <span class="req">*</span></label><input class="e-init" type="number" inputmode="decimal" step="any" value="${av(i.initial_stock)}" /></div>
+        </div>
+        <div class="grid2">
+          <div><label>発注点</label><input class="e-reorder" type="number" inputmode="decimal" step="any" value="${i.reorder_point==null?"":av(i.reorder_point)}" /></div>
+          <div><label>保管場所</label><input class="e-loc" type="text" value="${av(i.location)}" /></div>
+        </div>
+        <label>備考</label>
+        <input class="e-note" type="text" value="${av(i.note)}" />
+        <div class="btn-row2" style="margin-top:12px;">
+          <button type="button" class="e-save btn"><i class="ti ti-device-floppy"></i> 保存する</button>
+          <button type="button" class="e-cancel btn sub">キャンセル</button>
+        </div>
+      </div>
     </div>`;}).join("");
-  box.querySelectorAll(".edit").forEach(b=>b.addEventListener("click", ()=>{ openItemForm(data.find(x=>x.id===b.dataset.id)); window.scrollTo({top:0,behavior:"smooth"}); }));
   box.querySelectorAll(".ser-btn").forEach(b=>b.addEventListener("click", ()=>openSerials(b.dataset.name)));
+  box.querySelectorAll(".item-admin .edit").forEach(b=>b.addEventListener("click", ()=>{
+    const panel=b.closest(".item-admin").querySelector(".item-edit");
+    const open=panel.classList.toggle("hidden")===false;
+    b.innerHTML = open ? '<i class="ti ti-x"></i> 閉じる' : '<i class="ti ti-pencil"></i> 編集';
+    if(open) panel.querySelector(".e-name").focus();
+  }));
+  box.querySelectorAll(".item-admin .e-cancel").forEach(b=>b.addEventListener("click", ()=>{
+    const row=b.closest(".item-admin"); row.querySelector(".item-edit").classList.add("hidden");
+    const eb=row.querySelector(".edit"); eb.innerHTML='<i class="ti ti-pencil"></i> 編集';
+  }));
+  box.querySelectorAll(".item-admin .e-save").forEach(b=>b.addEventListener("click", async ()=>{
+    const row=b.closest(".item-admin"), id=row.dataset.id, msg=$("mstMsg");
+    const name=row.querySelector(".e-name").value.trim();
+    const init=parseFloat(row.querySelector(".e-init").value);
+    if(!name){ showMsg(msg,"型式・品名を入力してください。","err"); return; }
+    if(isNaN(init)){ showMsg(msg,"初期在庫数を入力してください（0でも可）。","err"); return; }
+    const rp=row.querySelector(".e-reorder").value;
+    const payload={ name, category:row.querySelector(".e-cat").value.trim()||null,
+      unit:row.querySelector(".e-unit").value.trim()||null, initial_stock:init,
+      reorder_point:rp!==""?parseFloat(rp):null,
+      location:row.querySelector(".e-loc").value.trim()||null,
+      note:row.querySelector(".e-note").value.trim()||null };
+    b.disabled=true;
+    const { error } = await db.from("items").update(payload).eq("id",id);
+    b.disabled=false;
+    if(error){ showMsg(msg,"保存に失敗しました："+error.message,"err"); return; }
+    showMsg(msg,"更新しました。","ok");
+    await loadItems(); await loadMaster();
+  }));
 }
 
 /* 工番マスタ（工事コード）管理 */
