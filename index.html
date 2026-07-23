@@ -173,6 +173,9 @@
   .btn-row2{grid-template-columns:1fr 1fr;}
   .btn-row3{grid-template-columns:repeat(3,1fr);}
   .btn-row2 .btn,.btn-row3 .btn{margin-top:0; height:46px; padding:0 8px; font-size:15px; display:inline-flex; align-items:center; justify-content:center; gap:6px;}
+  .cat-pdf-row{display:flex; gap:8px; max-width:460px; align-items:stretch;}
+  .cat-pdf-row .cat-sel{flex:1 1 auto; min-width:0; height:46px; margin:0;}
+  .cat-pdf-row .btn{margin-top:0; height:46px; padding:0 14px; white-space:nowrap; font-size:15px; display:inline-flex; align-items:center; justify-content:center; gap:6px; flex:0 0 auto;}
   .grid2{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:15px;}
   .row-flex{display:flex; gap:10px;}
   @media (min-width:860px){ .form-2col{display:grid; grid-template-columns:1fr 1fr; gap:0 20px;} }
@@ -393,9 +396,12 @@
         <div class="card">
           <h2>現在庫数</h2>
           <input id="stockSearch" type="search" placeholder="型式・カテゴリ・シリアルで絞り込み…" style="margin:4px 0 0;" />
-          <div class="btn-row2" style="margin-bottom:12px;">
+          <div class="btn-row2" style="margin-bottom:8px;">
             <button id="stock-csv" class="btn sub"><i class="ti ti-file-spreadsheet"></i> CSV</button>
             <button id="stock-pdf" class="btn"><i class="ti ti-printer"></i> PDF</button>
+          </div>
+          <div class="cat-pdf-row" style="margin-bottom:12px;">
+            <select id="stock-cat-sel" class="cat-sel"><option value="__all__">すべてのカテゴリ</option></select>
             <button id="stock-pdf-cat" class="btn sub"><i class="ti ti-category"></i> カテゴリ別PDF</button>
           </div>
           <div id="stockList"><div class="spinner">読み込み中…</div></div>
@@ -932,7 +938,17 @@ async function loadStock(){
   await loadSerials();
   const { data, error } = await db.rpc("list_stock");
   if(error){ box.innerHTML=`<div class="msg err">読み込み失敗：${esc(error.message)}</div>`; return; }
-  window._stock=data||[]; renderStock(window._stock);
+  window._stock=data||[]; renderStock(window._stock); populateCatSelect(window._stock);
+}
+/* カテゴリ別PDF用のカテゴリ選択肢を更新（選択は保持） */
+function populateCatSelect(rows){
+  const sel=$("stock-cat-sel"); if(!sel) return;
+  const prev=sel.value;
+  const cats=[...new Set(rows.map(r=>(r.category&&r.category.trim())||"未分類"))]
+    .sort((a,b)=> a==="未分類"?1 : b==="未分類"?-1 : a.localeCompare(b,'ja'));
+  sel.innerHTML='<option value="__all__">すべてのカテゴリ</option>'
+    + cats.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join("");
+  if([...sel.options].some(o=>o.value===prev)) sel.value=prev;
 }
 /* シリアル一覧を品名ごとに読み込み */
 async function loadSerials(){
@@ -1057,17 +1073,21 @@ $("stock-pdf").addEventListener("click", () => {
 $("stock-pdf-cat").addEventListener("click", () => {
   const rows = window._stock || [];
   if(!rows.length){ return; }
+  const pick = $("stock-cat-sel") ? $("stock-cat-sel").value : "__all__";
   const groups={};
   rows.forEach(r=>{ const c=(r.category&&r.category.trim())||"未分類"; (groups[c]=groups[c]||[]).push(r); });
-  const cats=Object.keys(groups).sort((a,b)=> a==="未分類"?1 : b==="未分類"?-1 : a.localeCompare(b,'ja'));
-  let body="", low=0, no=1;
+  let cats=Object.keys(groups).sort((a,b)=> a==="未分類"?1 : b==="未分類"?-1 : a.localeCompare(b,'ja'));
+  // 特定カテゴリが選ばれていれば、そのカテゴリのみ出力
+  if(pick!=="__all__"){ if(!groups[pick]){ return; } cats=[pick]; }
+  let body="", low=0, no=1, cnt=0;
   cats.forEach(c=>{
     body+=`<tr class="cat-row"><td colspan="9">■ ${esc(c)}（${groups[c].length}型式）</td></tr>`;
     const res=buildStockRows(groups[c], no, false);
-    body+=res.html; low+=res.low; no=res.nextNo;
+    body+=res.html; low+=res.low; no=res.nextNo; cnt+=groups[c].length;
   });
-  $("printArea").innerHTML=`<h1>工事部 資材在庫管理　現在庫一覧（カテゴリ別）</h1>
-    <div class="p-meta">出力日時：${nowStamp()}　／　型式数：${rows.length}　／　カテゴリ数：${cats.length}　／　要発注・在庫なし：${low}件</div>
+  const titleSuffix = pick==="__all__" ? "（カテゴリ別）" : `（${esc(pick)}）`;
+  $("printArea").innerHTML=`<h1>工事部 資材在庫管理　現在庫一覧${titleSuffix}</h1>
+    <div class="p-meta">出力日時：${nowStamp()}　／　型式数：${cnt}　／　カテゴリ数：${cats.length}　／　要発注・在庫なし：${low}件</div>
     <table><thead><tr><th>No.</th><th>型式・品名</th><th>保管場所</th><th>現在庫数</th><th>単位</th><th>発注点</th><th>状態</th><th>シリアルNo</th><th>備考</th></tr></thead>
     <tbody>${body}</tbody></table>`;
   printStockPdf();
