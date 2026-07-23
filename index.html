@@ -238,6 +238,7 @@
   .item-admin .edit{background:none; border:none; color:var(--amber-strong); font-size:13px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px;}
   @media (prefers-color-scheme: dark){ .item-admin .edit{color:var(--amber);} }
   .item-admin .item-edit{margin-top:12px; padding-top:12px; border-top:1px dashed var(--line);}
+  .note-view{font-size:12.5px; color:var(--muted); margin-top:4px; white-space:pre-line; word-break:break-word;}
 
   .tbl-wrap{overflow-x:auto; -webkit-overflow-scrolling:touch;}
   table.tbl{width:100%; border-collapse:collapse; font-size:13px; min-width:640px;}
@@ -268,6 +269,7 @@
     #printArea td.ser{white-space:nowrap; line-height:1.5;}
     #printArea td.ser .sn-note{color:#b00; font-size:.85em; margin-left:4px;}
     #printArea tr.cat-row td{background:#d9d9d9; font-weight:700; font-size:12px;}
+    #printArea td.note{white-space:pre-line;}
     body.print-landscape #printArea th,body.print-landscape #printArea td{font-size:10px;}
     @page{size:A4 landscape; margin:12mm;}
   }
@@ -431,7 +433,7 @@
               <div><label>保管場所</label><input id="m-loc" type="text" placeholder="例: A置場" /></div>
             </div>
             <label>備考</label>
-            <input id="m-note" type="text" placeholder="任意" />
+            <textarea id="m-note" rows="2" placeholder="任意（改行OK）"></textarea>
             <button id="saveItemBtn" class="btn"><i class="ti ti-device-floppy"></i> 保存する</button>
             <button id="cancelItemBtn" class="btn sub">キャンセル</button>
           </div>
@@ -1020,7 +1022,7 @@ function buildStockRows(rows, startNo, showCat){
     const k=Math.max(sers.length, stockRows, 1);
     const catCell = showCat?`<td rowspan="${k}">${esc(r.category||"")}</td>`:"";
     const head=`<td class="num" rowspan="${k}">${no}</td><td rowspan="${k}">${esc(r.name)}</td>${catCell}<td rowspan="${k}">${esc(r.location||"")}</td><td class="num" rowspan="${k}">${cur}</td><td rowspan="${k}">${esc(r.unit||"")}</td><td class="num" rowspan="${k}">${r.reorder_point??""}</td><td rowspan="${k}">${status}</td>`;
-    const noteCell=`<td rowspan="${k}">${esc(r.note||"")}</td>`;
+    const noteCell=`<td class="note" rowspan="${k}">${esc(r.note||"")}</td>`;
     for(let i=0;i<k;i++){
       const s=sers[i];
       const serCell = s ? `<td class="ser">${esc(s.serial)}${s.note?`　<span class="sn-note">${esc(s.note)}</span>`:""}</td>` : `<td class="ser"></td>`;
@@ -1111,6 +1113,7 @@ async function loadMaster(){
     return `<div class="item-admin" data-id="${i.id}">
       <div class="top"><span class="name">${esc(i.name)}${catBadge}</span><button type="button" class="edit" data-id="${i.id}"><i class="ti ti-pencil"></i> 編集</button></div>
       <div class="stock-meta">単位:${esc(i.unit||"-")} / 初期:${i.initial_stock} / 発注点:${i.reorder_point??"-"} / ${esc(i.location||"-")}</div>
+      ${i.note?`<div class="note-view">備考：${esc(i.note)}</div>`:""}
       ${serBtn}
       <div class="item-edit hidden">
         <label>型式・品名 <span class="req">*</span></label>
@@ -1126,7 +1129,7 @@ async function loadMaster(){
           <div><label>保管場所</label><input class="e-loc" type="text" value="${av(i.location)}" /></div>
         </div>
         <label>備考</label>
-        <input class="e-note" type="text" value="${av(i.note)}" />
+        <textarea class="e-note" rows="3" placeholder="任意（改行OK）">${esc(i.note||"")}</textarea>
         <div class="btn-row2" style="margin-top:12px;">
           <button type="button" class="e-save btn"><i class="ti ti-device-floppy"></i> 保存する</button>
           <button type="button" class="e-cancel btn sub">キャンセル</button>
@@ -1162,8 +1165,14 @@ async function loadMaster(){
     if(error){ showMsg(msg,"保存に失敗しました："+error.message,"err"); return; }
     // 一覧全体は再描画せず、この行だけその場で更新（スクロール位置を維持）
     row.querySelector(".name").innerHTML = esc(name) + (payload.category?`<span class="cat-tag">${esc(payload.category)}</span>`:"");
-    row.querySelector(".stock-meta").textContent =
+    const meta=row.querySelector(".stock-meta");
+    meta.textContent =
       `単位:${payload.unit||"-"} / 初期:${init} / 発注点:${payload.reorder_point??"-"} / ${payload.location||"-"}`;
+    let nv=row.querySelector(".note-view");
+    if(payload.note){
+      if(!nv){ nv=document.createElement("div"); nv.className="note-view"; meta.after(nv); }
+      nv.textContent="備考："+payload.note;
+    } else if(nv){ nv.remove(); }
     row.querySelector(".item-edit").classList.add("hidden");
     const eb=row.querySelector(".edit");
     eb.innerHTML='<i class="ti ti-check"></i> 保存しました';
