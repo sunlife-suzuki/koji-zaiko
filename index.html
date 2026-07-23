@@ -436,8 +436,10 @@
             </div>
             <div class="grid2">
               <div><label>発注点</label><input id="m-reorder" type="number" inputmode="decimal" step="any" placeholder="任意" /></div>
-              <div><label>保管場所</label><input id="m-loc" type="text" placeholder="例: A置場" /></div>
+              <div><label>単価（円）</label><input id="m-price" type="number" inputmode="decimal" step="any" placeholder="任意" /></div>
             </div>
+            <label>保管場所</label>
+            <input id="m-loc" type="text" placeholder="例: A置場" />
             <label>備考</label>
             <textarea id="m-note" rows="2" placeholder="任意（改行OK）"></textarea>
             <button id="saveItemBtn" class="btn"><i class="ti ti-device-floppy"></i> 保存する</button>
@@ -563,6 +565,7 @@ function showMsg(el, text, type){ el.textContent = text; el.className = "msg " +
 function todayStr(){ const d=new Date(), p=n=>String(n).padStart(2,"0"); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
 function thisMonthStr(){ const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`; }
 function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function yen(n){ return (n==null||n==="")?"":"¥"+Number(n).toLocaleString('ja-JP'); }
 function downloadCSV(filename, rows){
   const csv = rows.map(r=>r.map(c=>{ const s=String(c==null?"":c); return /[",\n\r]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }).join(",")).join("\r\n");
   const blob = new Blob(["﻿"+csv], {type:"text/csv;charset=utf-8;"});
@@ -927,8 +930,8 @@ async function delRecord(id){
 /* 現在庫CSV出力 */
 $("stock-csv").addEventListener("click", ()=>{
   const rows=window._stock||[]; if(!rows.length) return;
-  const data=[["型式・品名","カテゴリ","保管場所","現在庫数","単位","発注点","状態","備考"]];
-  rows.forEach(r=>{ const cur=Number(r.current_stock); const warn=(r.reorder_point!=null&&cur<=Number(r.reorder_point)); const status=warn?"要発注":(cur<=0?"在庫なし":""); data.push([r.name,r.category||"",r.location||"",cur,r.unit||"",r.reorder_point??"",status,r.note||""]); });
+  const data=[["型式・品名","カテゴリ","保管場所","現在庫数","単位","発注点","単価","在庫金額","状態","備考"]];
+  rows.forEach(r=>{ const cur=Number(r.current_stock); const warn=(r.reorder_point!=null&&cur<=Number(r.reorder_point)); const status=warn?"要発注":(cur<=0?"在庫なし":""); const up=r.unit_price; data.push([r.name,r.category||"",r.location||"",cur,r.unit||"",r.reorder_point??"",up??"",up!=null?up*cur:"",status,r.note||""]); });
   downloadCSV(`在庫一覧_${todayStr()}.csv`, data);
 });
 
@@ -973,7 +976,7 @@ function renderStock(rows){
     const catTag = r.category ? `<span class="cat-tag">${esc(r.category)}</span>` : "";
     return `<div class="stock-row${low?" low":""}">
       <div><div class="stock-name">${esc(r.name)}${catTag}</div>
-        <div class="stock-meta">${r.location?esc(r.location)+" / ":""}出庫計 ${r.total_out} ・ 入庫返却計 ${r.total_in}</div>
+        <div class="stock-meta">${r.location?esc(r.location)+" / ":""}出庫計 ${r.total_out} ・ 入庫返却計 ${r.total_in}${r.unit_price!=null?` ・ 単価 ${yen(r.unit_price)} ・ 在庫金額 ${yen(r.unit_price*cur)}`:""}</div>
         ${badge}${serBtn}</div>
       <div class="stock-num"><b style="color:${low?'var(--red)':'inherit'}">${cur}</b><span class="u">${esc(r.unit||"")}</span></div>
     </div>`;
@@ -1037,7 +1040,9 @@ function buildStockRows(rows, startNo, showCat){
     const stockRows=cur>0?Math.round(cur):0;
     const k=Math.max(sers.length, stockRows, 1);
     const catCell = showCat?`<td rowspan="${k}">${esc(r.category||"")}</td>`:"";
-    const head=`<td class="num" rowspan="${k}">${no}</td><td rowspan="${k}">${esc(r.name)}</td>${catCell}<td rowspan="${k}">${esc(r.location||"")}</td><td class="num" rowspan="${k}">${cur}</td><td rowspan="${k}">${esc(r.unit||"")}</td><td class="num" rowspan="${k}">${r.reorder_point??""}</td><td rowspan="${k}">${status}</td>`;
+    const priceCell=`<td class="num" rowspan="${k}">${yen(r.unit_price)}</td>`;
+    const amtCell=`<td class="num" rowspan="${k}">${r.unit_price!=null?yen(r.unit_price*cur):""}</td>`;
+    const head=`<td class="num" rowspan="${k}">${no}</td><td rowspan="${k}">${esc(r.name)}</td>${catCell}<td rowspan="${k}">${esc(r.location||"")}</td><td class="num" rowspan="${k}">${cur}</td><td rowspan="${k}">${esc(r.unit||"")}</td><td class="num" rowspan="${k}">${r.reorder_point??""}</td>${priceCell}${amtCell}<td rowspan="${k}">${status}</td>`;
     const noteCell=`<td class="note" rowspan="${k}">${esc(r.note||"")}</td>`;
     for(let i=0;i<k;i++){
       const s=sers[i];
@@ -1065,7 +1070,7 @@ $("stock-pdf").addEventListener("click", () => {
   const { html, low } = buildStockRows(rows, 1, true);
   $("printArea").innerHTML=`<h1>工事部 資材在庫管理　現在庫一覧</h1>
     <div class="p-meta">出力日時：${nowStamp()}　／　型式数：${rows.length}　／　要発注・在庫なし：${low}件</div>
-    <table><thead><tr><th>No.</th><th>型式・品名</th><th>カテゴリ</th><th>保管場所</th><th>現在庫数</th><th>単位</th><th>発注点</th><th>状態</th><th>シリアルNo</th><th>備考</th></tr></thead>
+    <table><thead><tr><th>No.</th><th>型式・品名</th><th>カテゴリ</th><th>保管場所</th><th>現在庫数</th><th>単位</th><th>発注点</th><th>単価</th><th>在庫金額</th><th>状態</th><th>シリアルNo</th><th>備考</th></tr></thead>
     <tbody>${html}</tbody></table>`;
   printStockPdf();
 });
@@ -1081,14 +1086,14 @@ $("stock-pdf-cat").addEventListener("click", () => {
   if(pick!=="__all__"){ if(!groups[pick]){ return; } cats=[pick]; }
   let body="", low=0, no=1, cnt=0;
   cats.forEach(c=>{
-    body+=`<tr class="cat-row"><td colspan="9">■ ${esc(c)}（${groups[c].length}型式）</td></tr>`;
+    body+=`<tr class="cat-row"><td colspan="11">■ ${esc(c)}（${groups[c].length}型式）</td></tr>`;
     const res=buildStockRows(groups[c], no, false);
     body+=res.html; low+=res.low; no=res.nextNo; cnt+=groups[c].length;
   });
   const titleSuffix = pick==="__all__" ? "（カテゴリ別）" : `（${esc(pick)}）`;
   $("printArea").innerHTML=`<h1>工事部 資材在庫管理　現在庫一覧${titleSuffix}</h1>
     <div class="p-meta">出力日時：${nowStamp()}　／　型式数：${cnt}　／　カテゴリ数：${cats.length}　／　要発注・在庫なし：${low}件</div>
-    <table><thead><tr><th>No.</th><th>型式・品名</th><th>保管場所</th><th>現在庫数</th><th>単位</th><th>発注点</th><th>状態</th><th>シリアルNo</th><th>備考</th></tr></thead>
+    <table><thead><tr><th>No.</th><th>型式・品名</th><th>保管場所</th><th>現在庫数</th><th>単位</th><th>発注点</th><th>単価</th><th>在庫金額</th><th>状態</th><th>シリアルNo</th><th>備考</th></tr></thead>
     <tbody>${body}</tbody></table>`;
   printStockPdf();
 });
@@ -1101,6 +1106,7 @@ function openItemForm(it){
   $("m-id").value=it?.id||""; $("m-name").value=it?.name||""; $("m-unit").value=it?.unit||"";
   $("m-cat").value=it?.category||"";
   $("m-init").value=it?.initial_stock??""; $("m-reorder").value=it?.reorder_point??"";
+  $("m-price").value=it?.unit_price??"";
   $("m-loc").value=it?.location||""; $("m-note").value=it?.note||""; $("m-name").focus();
 }
 $("saveItemBtn").addEventListener("click", async () => {
@@ -1109,6 +1115,7 @@ $("saveItemBtn").addEventListener("click", async () => {
   if(isNaN(init)){ showMsg(msg,"初期在庫数を入力してください（0でも可）。","err"); return; }
   const payload={ name, unit:$("m-unit").value.trim()||null, category:$("m-cat").value.trim()||null, initial_stock:init,
     reorder_point:$("m-reorder").value!==""?parseFloat($("m-reorder").value):null,
+    unit_price:$("m-price").value!==""?parseFloat($("m-price").value):null,
     location:$("m-loc").value.trim()||null, note:$("m-note").value.trim()||null };
   $("saveItemBtn").disabled=true;
   let error;
@@ -1132,7 +1139,7 @@ async function loadMaster(){
     const catBadge = i.category ? `<span class="cat-tag">${esc(i.category)}</span>` : "";
     return `<div class="item-admin" data-id="${i.id}">
       <div class="top"><span class="name">${esc(i.name)}${catBadge}</span><button type="button" class="edit" data-id="${i.id}"><i class="ti ti-pencil"></i> 編集</button></div>
-      <div class="stock-meta">単位:${esc(i.unit||"-")} / 初期:${i.initial_stock} / 発注点:${i.reorder_point??"-"} / ${esc(i.location||"-")}</div>
+      <div class="stock-meta">単位:${esc(i.unit||"-")} / 初期:${i.initial_stock} / 発注点:${i.reorder_point??"-"}${i.unit_price!=null?` / 単価:¥${Number(i.unit_price).toLocaleString('ja-JP')}`:""} / ${esc(i.location||"-")}</div>
       ${i.note?`<div class="note-view">備考：${esc(i.note)}</div>`:""}
       ${serBtn}
       <div class="item-edit hidden">
@@ -1146,8 +1153,10 @@ async function loadMaster(){
         </div>
         <div class="grid2">
           <div><label>発注点</label><input class="e-reorder" type="number" inputmode="decimal" step="any" value="${i.reorder_point==null?"":av(i.reorder_point)}" /></div>
-          <div><label>保管場所</label><input class="e-loc" type="text" value="${av(i.location)}" /></div>
+          <div><label>単価（円）</label><input class="e-price" type="number" inputmode="decimal" step="any" value="${i.unit_price==null?"":av(i.unit_price)}" /></div>
         </div>
+        <label>保管場所</label>
+        <input class="e-loc" type="text" value="${av(i.location)}" />
         <label>備考</label>
         <textarea class="e-note" rows="3" placeholder="任意（改行OK）">${esc(i.note||"")}</textarea>
         <div class="btn-row2" style="margin-top:12px;">
@@ -1173,10 +1182,11 @@ async function loadMaster(){
     const init=parseFloat(row.querySelector(".e-init").value);
     if(!name){ showMsg(msg,"型式・品名を入力してください。","err"); return; }
     if(isNaN(init)){ showMsg(msg,"初期在庫数を入力してください（0でも可）。","err"); return; }
-    const rp=row.querySelector(".e-reorder").value;
+    const rp=row.querySelector(".e-reorder").value, up=row.querySelector(".e-price").value;
     const payload={ name, category:row.querySelector(".e-cat").value.trim()||null,
       unit:row.querySelector(".e-unit").value.trim()||null, initial_stock:init,
       reorder_point:rp!==""?parseFloat(rp):null,
+      unit_price:up!==""?parseFloat(up):null,
       location:row.querySelector(".e-loc").value.trim()||null,
       note:row.querySelector(".e-note").value.trim()||null };
     b.disabled=true;
@@ -1187,7 +1197,7 @@ async function loadMaster(){
     row.querySelector(".name").innerHTML = esc(name) + (payload.category?`<span class="cat-tag">${esc(payload.category)}</span>`:"");
     const meta=row.querySelector(".stock-meta");
     meta.textContent =
-      `単位:${payload.unit||"-"} / 初期:${init} / 発注点:${payload.reorder_point??"-"} / ${payload.location||"-"}`;
+      `単位:${payload.unit||"-"} / 初期:${init} / 発注点:${payload.reorder_point??"-"}${payload.unit_price!=null?` / 単価:¥${Number(payload.unit_price).toLocaleString('ja-JP')}`:""} / ${payload.location||"-"}`;
     let nv=row.querySelector(".note-view");
     if(payload.note){
       if(!nv){ nv=document.createElement("div"); nv.className="note-view"; meta.after(nv); }
