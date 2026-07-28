@@ -195,8 +195,12 @@
 
   .stock-grid{display:grid; grid-template-columns:1fr; gap:0;}
   @media (min-width:860px){ .stock-grid{grid-template-columns:1fr 1fr; gap:0 24px;} }
-  .stock-row{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:13px 2px; border-bottom:1px solid var(--line-soft);}
+  .stock-row{display:flex; flex-direction:column; align-items:stretch; padding:13px 2px; border-bottom:1px solid var(--line-soft);}
+  .stock-top{display:flex; align-items:center; justify-content:space-between; gap:10px;}
   .stock-row.low{background:rgba(226,75,74,.12); border-left:3px solid var(--red); border-bottom-color:transparent; border-radius:8px; padding:13px 10px; margin:2px 0;}
+  .stk-edit-btn{background:none; border:none; color:var(--amber-strong); font-size:12.5px; font-weight:700; cursor:pointer; margin-top:6px; padding:0; display:inline-flex; align-items:center; gap:4px;}
+  @media (prefers-color-scheme: dark){ .stk-edit-btn{color:var(--amber);} }
+  .stock-edit{margin-top:10px; padding-top:10px; border-top:1px dashed var(--line);}
   .stock-name{font-weight:600; font-size:15px;}
   .stock-meta{font-size:12px; color:var(--muted); margin-top:2px;}
   .stock-num{text-align:right; white-space:nowrap;}
@@ -1011,6 +1015,7 @@ function renderStock(rows){
   const matchSerial=(name)=>(SERIALS_BY_NAME[name]||[]).some(x=>x.serial.toLowerCase().includes(kw)||(x.note&&x.note.toLowerCase().includes(kw)));
   const list=rows.filter(r=>!kw||(r.name||"").toLowerCase().includes(kw)||(r.category||"").toLowerCase().includes(kw)||matchSerial(r.name));
   if(!list.length){ box.innerHTML='<p class="muted center">該当する型式がありません。</p>'; return; }
+  const av=v=>esc(v==null?"":v);
   box.innerHTML='<div class="stock-grid">'+list.map(r=>{
     const cur=Number(r.current_stock);
     const warn=(r.reorder_point!=null && cur<=Number(r.reorder_point));
@@ -1019,14 +1024,63 @@ function renderStock(rows){
     const sn=(SERIALS_BY_NAME[r.name]||[]).length;
     const serBtn = sn ? `<button type="button" class="ser-btn" data-name="${esc(r.name)}"><i class="ti ti-barcode"></i> シリアル ${sn}件</button>` : "";
     const catTag = r.category ? `<span class="cat-tag">${esc(r.category)}</span>` : "";
-    return `<div class="stock-row${low?" low":""}">
-      <div><div class="stock-name">${esc(r.name)}${catTag}</div>
-        <div class="stock-meta">${r.location?esc(r.location)+" / ":""}出庫計 ${r.total_out} ・ 入庫返却計 ${r.total_in}${r.unit_price!=null?` ・ 単価 ${yen(r.unit_price)} ・ 在庫金額 ${yen(r.unit_price*cur)}`:""}</div>
-        ${badge}${serBtn}</div>
-      <div class="stock-num"><b style="color:${low?'var(--red)':'inherit'}">${cur}</b><span class="u">${esc(r.unit||"")}</span></div>
+    return `<div class="stock-row${low?" low":""}" data-id="${r.id}">
+      <div class="stock-top">
+        <div><div class="stock-name">${esc(r.name)}${catTag}</div>
+          <div class="stock-meta">${r.location?esc(r.location)+" / ":""}出庫計 ${r.total_out} ・ 入庫返却計 ${r.total_in}${r.unit_price!=null?` ・ 単価 ${yen(r.unit_price)} ・ 在庫金額 ${yen(r.unit_price*cur)}`:""}</div>
+          ${badge}${serBtn}
+          <button type="button" class="stk-edit-btn" data-id="${r.id}"><i class="ti ti-pencil"></i> 型式・単位などを編集</button></div>
+        <div class="stock-num"><b style="color:${low?'var(--red)':'inherit'}">${cur}</b><span class="u">${esc(r.unit||"")}</span></div>
+      </div>
+      <div class="stock-edit hidden">
+        <label>型式・品名 <span class="req">*</span></label>
+        <input class="se-name" type="text" value="${av(r.name)}" />
+        <label>カテゴリ</label>
+        <input class="se-cat" type="text" list="catList" value="${av(r.category)}" />
+        <div class="grid2">
+          <div><label>単位</label><input class="se-unit" type="text" value="${av(r.unit)}" placeholder="巻 / 本 / 個 など" /></div>
+          <div><label>発注点</label><input class="se-reorder" type="number" inputmode="decimal" step="any" value="${r.reorder_point==null?"":av(r.reorder_point)}" /></div>
+        </div>
+        <div class="grid2">
+          <div><label>単価（円）</label><input class="se-price" type="number" inputmode="decimal" step="any" value="${r.unit_price==null?"":av(r.unit_price)}" /></div>
+          <div><label>保管場所</label><input class="se-loc" type="text" value="${av(r.location)}" /></div>
+        </div>
+        <div class="btn-row2" style="margin-top:10px;">
+          <button type="button" class="se-save btn"><i class="ti ti-device-floppy"></i> 保存する</button>
+          <button type="button" class="se-cancel btn sub">キャンセル</button>
+        </div>
+        <p class="muted" style="font-size:11.5px;margin:8px 0 0;">※初期在庫数の変更は「資材マスタ」から行えます。</p>
+      </div>
     </div>`;
   }).join("")+'</div>';
   box.querySelectorAll(".ser-btn").forEach(b=>b.addEventListener("click", ()=>openSerials(b.dataset.name)));
+  box.querySelectorAll(".stk-edit-btn").forEach(b=>b.addEventListener("click", ()=>{
+    const panel=b.closest(".stock-row").querySelector(".stock-edit");
+    const open=panel.classList.toggle("hidden")===false;
+    b.innerHTML = open ? '<i class="ti ti-x"></i> 閉じる' : '<i class="ti ti-pencil"></i> 型式・単位などを編集';
+    if(open) panel.querySelector(".se-name").focus();
+  }));
+  box.querySelectorAll(".stock-row .se-cancel").forEach(b=>b.addEventListener("click", ()=>{
+    const row=b.closest(".stock-row"); row.querySelector(".stock-edit").classList.add("hidden");
+    row.querySelector(".stk-edit-btn").innerHTML='<i class="ti ti-pencil"></i> 型式・単位などを編集';
+  }));
+  box.querySelectorAll(".stock-row .se-save").forEach(b=>b.addEventListener("click", async ()=>{
+    const row=b.closest(".stock-row"), id=row.dataset.id;
+    const name=row.querySelector(".se-name").value.trim();
+    if(!name){ alert("型式・品名を入力してください。"); return; }
+    const rp=row.querySelector(".se-reorder").value, up=row.querySelector(".se-price").value;
+    const payload={ name, category:row.querySelector(".se-cat").value.trim()||null,
+      unit:row.querySelector(".se-unit").value.trim()||null,
+      reorder_point:rp!==""?parseFloat(rp):null, unit_price:up!==""?parseFloat(up):null,
+      location:row.querySelector(".se-loc").value.trim()||null };
+    b.disabled=true;
+    const { error } = await db.from("items").update(payload).eq("id",id);
+    b.disabled=false;
+    if(error){ alert("保存に失敗しました："+error.message); return; }
+    const it=(window._stock||[]).find(x=>x.id===id); if(it) Object.assign(it,payload);
+    const y=window.scrollY; renderStock(window._stock); populateCatSelect(window._stock); window.scrollTo(0,y);
+    loadItems();
+  }));
 }
 /* シリアル一覧モーダル（onPick を渡すと選択モード：タップで追加） */
 function openSerials(name, onPick){
