@@ -177,6 +177,10 @@
   .cat-pdf-row{display:flex; gap:8px; max-width:460px; align-items:stretch;}
   .cat-pdf-row .cat-sel{flex:1 1 auto; min-width:0; height:46px; margin:0;}
   .cat-pdf-row .btn{margin-top:0; height:46px; padding:0 14px; white-space:nowrap; font-size:15px; display:inline-flex; align-items:center; justify-content:center; gap:6px; flex:0 0 auto;}
+  @media (max-width:640px){
+    .cat-pdf-row{flex-direction:column; align-items:stretch; max-width:none;}
+    .cat-pdf-row .cat-sel,.cat-pdf-row .btn{width:100%; flex:0 0 auto;}
+  }
   .grid2{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:15px;}
   .row-flex{display:flex; gap:10px;}
   @media (min-width:860px){ .form-2col{display:grid; grid-template-columns:1fr 1fr; gap:0 20px;} }
