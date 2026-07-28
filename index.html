@@ -663,6 +663,10 @@ async function boot(){
     await loadJobNos();
     await loadSerials();
     await loadMyRecent();
+    // 前回開いていたタブを復元（更新のたびに記録画面へ戻らないように）
+    let sv=null; try{ sv=localStorage.getItem("kz-view"); }catch(e){}
+    const adminOnly=["stocktake","cost","admin"];
+    if(sv && sv!=="record" && $("view-"+sv) && (!adminOnly.includes(sv) || IS_ADMIN)) switchView(sv);
   }else{
     $("app").classList.add("hidden"); $("login").classList.remove("hidden");
   }
@@ -671,6 +675,7 @@ db.auth.onAuthStateChange((_e,s)=>{ if(s) boot(); });
 
 /* タブ切替（サイドバー・下タブ共通） */
 function switchView(v){
+  try{ localStorage.setItem("kz-view", v); }catch(e){}   // 更新後も同じタブを開く
   document.querySelectorAll("[data-view]").forEach(x=>x.classList.toggle("active", x.dataset.view===v));
   ["record","stock","master","jobmaster","stocktake","cost","admin"].forEach(n=>$("view-"+n).classList.toggle("hidden", n!==v));
   if(v==="stock") loadStock();
